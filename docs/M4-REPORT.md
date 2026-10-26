@@ -482,6 +482,14 @@ person does with such a file once saved is outside the app, like any download.
    file opens from `file://` with no network request; walk known gap 2 there, then give the owner the
    URL and add it to this report.
 
+**Shipped 25 Oct 2026.** First commit `b693435` on `main` (1,192 files staged by path from a reviewed
+list; the editor's `.claude/` folder left out), `gh repo create unique-name27/headcount-planner
+--public --source . --remote origin --push`, `npm run deploy` (gh-pages), Pages serving `gh-pages /`
+(already enabled by the push, so the POST answered 409). Live: https://unique-name27.github.io/headcount-planner/.
+The live page is byte-identical to the verified `headcount-planner.html` (5,219,848 bytes); it loads the
+sample in all five modes with no error and no "No data" tile, and Plan > Hiring reads 39 open to hire
+for Silicon Engineering in HRBP mode, as on the local build.
+
 ## Hiring progress
 
 Added after M4 at the owner's request of 24 Oct 2026: "a module that tracks headcount progress via
