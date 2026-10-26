@@ -1,0 +1,309 @@
+/**
+ * Every sample manager's allocation as the requests reading gave it, pinned before My team's
+ * allocation moved to the rows the approvals wrote (docs/M2-REPORT.md known gap 6, browser finding
+ * B3), and the digest both readings are compared by. Test code only.
+ *
+ * A manager is an employee who holds a seat on the as-of date that some position reports to; each is
+ * read in Manager mode acting as themselves. A digest line is the manager's ID, the allocation's heads,
+ * Filled/Open/Planned, requested/left to request, the approved adds since the lock, and the first 16
+ * hex digits of the SHA-256 of the allocation (every seat, priced, in order, with its band cost and
+ * weight; the totals and the standard heads) and the seats, requested and left-to-request lists, as
+ * canonical JSON. So two equal lines mean byte-identical allocations. A later change to the sample
+ * that moves an allocation re-pins these lines; the "no request" test in `allocation.test.ts` still
+ * proves the allocation reads positions only.
+ */
+import { SAMPLE_AS_OF, type Sample } from '@/data/sample'
+import { sha256 } from '@/lib/sha256'
+import { canonicalJson } from '@/plan/canonical'
+import { isActiveOn, toAssignments } from '@/plan/engine/heads'
+import type { TeamFacts } from './facts'
+
+/** The sample's managers, by employee ID. */
+export function sampleManagers(s: Sample): string[] {
+  const managerSeats = new Set<string>()
+  for (const p of s.datasets.positions) if (p.managerPositionId) managerSeats.add(p.managerPositionId)
+  const people = new Set<string>()
+  for (const a of toAssignments(s.datasets.workers))
+    if (
+      a.positionId &&
+      managerSeats.has(a.positionId) &&
+      a.workerType === 'Employee' &&
+      isActiveOn(a, SAMPLE_AS_OF)
+    )
+      people.add(a.employeeId)
+  return [...people].sort()
+}
+
+/** One manager's digest line, without the ID (see the header). */
+export function allocationDigest(f: TeamFacts): string {
+  const ids = (list: readonly { positionId: string }[]) => list.map((p) => p.positionId)
+  const a = f.allocation
+  const body = canonicalJson({
+    allocation: a,
+    seats: {
+      all: ids(f.seats.all),
+      filled: ids(f.seats.filled),
+      open: ids(f.seats.open),
+      planned: ids(f.seats.planned),
+    },
+    requested: ids(f.requested),
+    leftToRequest: ids(f.leftToRequest),
+  })
+  const adds = a.seats.filter((s) => s.source === 'approved-add').length
+  return `${a.heads} ${a.filled}/${a.open}/${a.planned} ${a.requested}/${a.leftToRequest} ${adds} ${sha256(body).slice(0, 16)}`
+}
+
+/** Every manager's digest under the requests reading, by employee ID (pinned 23 Oct 2026). */
+export const ALLOCATION_BEFORE: ReadonlyMap<string, string> = new Map(
+  `
+E10001 1609 1449/100/60 0/60 11 1176459dd25ebd9d
+E10002 603 555/30/18 0/18 2 31c0e1bd9052fa5c
+E10006 30 29/1/0 0/0 0 cb669016be9811b5
+E10008 54 49/3/2 0/2 0 f0093e31878b1253
+E10014 45 35/6/4 0/4 1 f6ee373d3346f4bb
+E10018 52 44/5/3 0/3 0 e9e926c8a3ab4ded
+E10020 27 26/1/0 0/0 0 64fe4cc42edee7c0
+E10024 7 7/0/0 0/0 0 a18a06a0af12fe02
+E10029 4 4/0/0 0/0 0 c9469d445c908456
+E10031 7 6/0/1 0/1 0 fc66cd4069abcf97
+E10033 36 33/3/0 0/0 0 666823f3c9d40d74
+E10034 13 10/3/0 0/0 0 56f5f17f298c29ee
+E10039 9 8/1/0 0/0 0 ba17316c23c7f461
+E10041 8 6/0/2 0/2 0 22c24a5aedad55a7
+E10042 7 7/0/0 0/0 0 ff9e8eb3031d92c1
+E10045 181 172/3/6 0/6 0 5f32afb202199ee0
+E10053 38 33/3/2 0/2 0 4310680e70cdf738
+E10056 199 169/20/10 0/10 1 b3b95d9f1081b413
+E10057 53 47/4/2 0/2 0 ffc2d80847b07c9c
+E10061 11 7/2/2 0/2 1 4c9a99edff358bd7
+E10065 6 5/1/0 0/0 0 53ff9817f2fbd060
+E10069 7 5/1/1 0/1 1 2c6bbd22d41695c5
+E10070 11 10/0/1 0/1 0 44baf90ef152d874
+E10071 7 6/1/0 0/0 0 57585c141f0e5858
+E10072 12 8/2/2 0/2 1 1757d3a7e66014f3
+E10073 7 7/0/0 0/0 0 21d6b3975dac0657
+E10077 380 336/28/16 0/16 6 2ba5cfd05ee63f13
+E10079 34 31/1/2 0/2 1 3bff925da1f6f303
+E10080 11 10/0/1 0/1 1 a85a6a19b33913c5
+E10081 7 5/1/1 0/1 0 3d51bd95ef6fd1ab
+E10085 23 23/0/0 0/0 0 c98e102eb1c96852
+E10087 50 46/3/1 0/1 1 e15a8059557fdb60
+E10090 7 7/0/0 0/0 0 fd7f642030e7971e
+E10092 3 3/0/0 0/0 0 a45045fd25233ec2
+E10093 200 181/11/8 0/8 1 6f042af4a15b24f7
+E10095 9 7/2/0 0/0 1 49405af5b89b67c7
+E10098 9 8/1/0 0/0 0 71a5b04e7dcc9a56
+E10100 9 7/0/2 0/2 0 aa4e35b005483c75
+E10101 7 5/2/0 0/0 0 3cc411fde4888ae8
+E10105 43 38/4/1 0/1 0 4c8ba4e8fc8e7fc8
+E10108 14 10/2/2 0/2 0 5b2e8e684bc1788e
+E10110 33 32/0/1 0/1 0 6e5abd18e0f23669
+E10113 4 4/0/0 0/0 0 a5b1915627d35a6c
+E10116 9 8/1/0 0/0 0 16a48592a54951f0
+E10120 46 41/3/2 0/2 1 8008338e1a636097
+E10123 8 8/0/0 0/0 0 fd564a7ebdfed63b
+E10124 8 6/0/2 0/2 0 8f5231c9e1e3a566
+E10129 7 7/0/0 0/0 0 73ff93c35cf7bd07
+E10132 133 129/4/0 0/0 0 2ae3add76d2a3154
+E10133 219 199/16/4 0/4 1 970af8013ebf6c0a
+E10134 8 6/0/2 0/2 0 c301b83160bedb22
+E10135 8 8/0/0 0/0 0 bc785ccd69ad5675
+E10136 5 5/0/0 0/0 0 423cd5515fe97d60
+E10138 4 4/0/0 0/0 0 4a973e88d9e925ae
+E10142 7 7/0/0 0/0 0 63a7aefd7291acef
+E10146 6 6/0/0 0/0 0 3a6df285abfeec92
+E10147 39 36/3/0 0/0 0 681f5cdf86cdc94e
+E10150 6 6/0/0 0/0 0 3d1a69ca8536c77b
+E10157 51 40/7/4 0/4 1 07675f2f2b10ffb0
+E10161 112 90/15/7 0/7 0 c17c3b97464f2045
+E10166 6 6/0/0 0/0 0 890fb4de64ee684a
+E10169 36 33/2/1 0/1 1 92f7b127d089f8bb
+E10174 7 7/0/0 0/0 0 540eaa0b2f3741c0
+E10177 8 7/1/0 0/0 0 737568b047086433
+E10179 6 5/1/0 0/0 0 b80fad7b6b93d075
+E10183 7 6/1/0 0/0 0 9f03bdde6105ceaa
+E10193 10 8/1/1 0/1 0 4c9d506fbaf9eb42
+E10199 10 10/0/0 0/0 0 97b78a77dd0217c4
+E10213 44 43/1/0 0/0 0 1af5f9bb5a4dfa41
+E10214 11 10/1/0 0/0 0 da169b3758e9a61a
+E10218 34 33/1/0 0/0 0 98d6e7e1feea7c94
+E10220 6 6/0/0 0/0 0 a91882fbc8841aae
+E10221 11 11/0/0 0/0 0 89d16f02110905cf
+E10223 9 7/2/0 0/0 1 4adf00c462d55616
+E10230 6 6/0/0 0/0 0 a8aec7c31819896b
+E10235 74 63/4/7 0/7 0 349f8a6b6e5d5f2a
+E10242 8 6/1/1 0/1 0 7989c79badddce70
+E10247 16 16/0/0 0/0 0 a58b1a8337a97734
+E10250 5 4/0/1 0/1 0 e3cb24f41475909b
+E10261 19 19/0/0 0/0 0 be9ec5562673f9bb
+E10274 12 8/3/1 0/1 0 2ede6cca775e5e52
+E10275 7 7/0/0 0/0 0 d4354baeb44a33a1
+E10286 6 6/0/0 0/0 0 c589a71afab6257f
+E10289 52 49/1/2 0/2 0 fc2a732ac3164da6
+E10293 239 210/21/8 0/8 3 e119cc110837b743
+E10302 8 6/2/0 0/0 0 dfd73de301918178
+E10303 6 6/0/0 0/0 0 7021422a71fa0895
+E10304 7 7/0/0 0/0 0 3df7a34373dab6ea
+E10307 11 7/2/2 0/2 0 2309a7669a124365
+E10308 5 5/0/0 0/0 0 7a3a622e0237d4cf
+E10309 6 5/0/1 0/1 0 9872b10e3d7b5753
+E10313 35 26/3/6 0/6 0 a828c91c9ee85a44
+E10316 3 3/0/0 0/0 0 af9c75ec4f09688b
+E10323 7 6/1/0 0/0 0 c524a01b0a12e7fb
+E10327 217 183/18/16 0/16 2 0cbbe3719b26fbd1
+E10330 6 6/0/0 0/0 0 c4c4ceff98cd64f6
+E10331 16 15/1/0 0/0 0 117b791f8261add3
+E10332 39 35/4/0 0/0 0 283d53e07e2b414f
+E10334 47 42/3/2 0/2 0 645acc2746f46f01
+E10338 16 16/0/0 0/0 0 b98f58bae93a01c3
+E10339 48 42/5/1 0/1 1 37cbe0f29a645612
+E10348 85 77/5/3 0/3 1 86e1470147b48d9e
+E10349 5 5/0/0 0/0 0 0605a1b706005de5
+E10353 4 4/0/0 0/0 0 0c1a3532a456facb
+E10355 8 7/1/0 0/0 0 6c14a2a5778bb19a
+E10363 4 4/0/0 0/0 0 aef8a147db0b7953
+E10372 41 36/3/2 0/2 0 a85e5a1d813ad61b
+E10381 7 6/1/0 0/0 0 77ed8e5f3236943f
+E10383 6 5/1/0 0/0 0 9164eeea574da287
+E10384 58 44/10/4 0/4 0 b510190cc879ef23
+E10390 7 6/1/0 0/0 0 f7a717796a503365
+E10393 6 5/1/0 0/0 0 b0159de06f60d669
+E10398 4 4/0/0 0/0 0 dd1994ebf553b6a4
+E10402 7 7/0/0 0/0 0 00d65e8aefe36b1d
+E10407 9 9/0/0 0/0 0 f7a15c18f6cf7491
+E10409 5 5/0/0 0/0 0 93ceb3132c5efbb5
+E10419 5 4/0/1 0/1 0 c9041e9bfd5b8347
+E10420 51 49/2/0 0/0 0 b41cdd3ec2cfa0c8
+E10425 8 5/1/2 0/2 0 1e4fce4c5e33a855
+E10435 9 8/0/1 0/1 0 d7fb4a4071e0c6ce
+E10443 7 7/0/0 0/0 0 c7313df2613ddac6
+E10454 5 5/0/0 0/0 0 069bc69fac975582
+E10456 7 7/0/0 0/0 0 cfee49feff390032
+E10457 36 30/2/4 0/4 1 d88e4ce322c113e2
+E10458 5 5/0/0 0/0 0 b3dc87b3e6671d36
+E10467 3 3/0/0 0/0 0 f036c6a6e7625418
+E10470 6 6/0/0 0/0 0 a2cdb4d7d5c4bbd9
+E10486 9 8/1/0 0/0 0 3f36b3113445199a
+E10495 7 6/1/0 0/0 0 be29eaaa84e23619
+E10502 100 84/10/6 0/6 1 ec62971055405f65
+E10503 5 4/1/0 0/0 0 56e795b705e887dc
+E10505 42 39/2/1 0/1 0 ef28a3bc9cca6800
+E10509 6 6/0/0 0/0 0 1391ef52887dba48
+E10513 14 14/0/0 0/0 0 e88d607db7b0d78c
+E10516 45 45/0/0 0/0 0 d1b4874b24ec11d3
+E10517 6 6/0/0 0/0 0 39a6d4093127e989
+E10518 9 8/1/0 0/0 0 406b2ac175d0635a
+E10527 6 5/1/0 0/0 0 3c674b75a845b290
+E10541 5 5/0/0 0/0 0 de63cf955f320798
+E10543 8 8/0/0 0/0 0 5db0400611ce1a91
+E10555 8 5/2/1 0/1 0 d14ffff3555408b4
+E10565 7 6/0/1 0/1 0 e864044c9c4faf19
+E10566 6 6/0/0 0/0 0 44f55981a9996a36
+E10569 6 6/0/0 0/0 0 0595c16103367bf6
+E10570 8 7/1/0 0/0 0 613f1c0ae5ac3498
+E10572 6 6/0/0 0/0 0 77ed30374e78e4a8
+E10575 10 8/1/1 0/1 0 221115cea9da7c67
+E10600 9 8/1/0 0/0 0 cab99a6aadb4783e
+E10614 8 6/0/2 0/2 0 303648574e980b79
+E10615 6 6/0/0 0/0 0 4cdb817ff9fab5e6
+E10626 9 7/1/1 0/1 0 3d44abaf30c398a0
+E10634 7 5/0/2 0/2 0 c743ecb083c46ea9
+E10640 4 4/0/0 0/0 0 551ac015fab25050
+E10642 38 36/2/0 0/0 0 00a3a31ec1eb1060
+E10651 8 8/0/0 0/0 0 e2f7f4f9e2a4ed32
+E10652 8 7/1/0 0/0 0 38a73f5129aceb5f
+E10674 8 8/0/0 0/0 0 26750d8c861a6012
+E10679 8 7/1/0 0/0 0 2c3e83f737de5459
+E10696 6 6/0/0 0/0 0 b19db16f01e0ad46
+E10703 10 7/1/2 0/2 0 75d2569bfe7108d0
+E10710 10 9/0/1 0/1 0 52b4c9fdffc90d5a
+E10728 4 4/0/0 0/0 0 81a60115d888e3c2
+E10743 37 35/1/1 0/1 0 79b67b6074633ba8
+E10753 8 8/0/0 0/0 0 b053defb31d30d6e
+E10757 42 36/4/2 0/2 1 4351ad7c733da36a
+E10758 5 5/0/0 0/0 0 760d0052e86882bd
+E10765 9 8/0/1 0/1 0 868af312ce9d036f
+E10775 9 6/2/1 0/1 0 f6ee577478590bb2
+E10778 10 7/3/0 0/0 0 1bac1df1e4a46c1b
+E10784 40 33/4/3 0/3 1 0cc8e2d3a751f4a1
+E10787 9 9/0/0 0/0 0 c2f2303296dacb3c
+E10813 6 6/0/0 0/0 0 4142b521fb3a2996
+E10816 5 5/0/0 0/0 0 2e3a0309096866c8
+E10824 10 10/0/0 0/0 0 0d9a046e26c8ebed
+E10828 46 41/1/4 0/4 0 2400d8ad00d6f54d
+E10832 15 15/0/0 0/0 0 9a614da4d2b93b56
+E10839 10 8/1/1 0/1 0 51c4ec19fd700f16
+E10852 45 39/3/3 0/3 1 5fea0c3e59d4e3f3
+E10896 6 4/2/0 0/0 0 38e552f2128d7d32
+E10904 6 6/0/0 0/0 0 74ebecaa5c36dadf
+E10906 6 6/0/0 0/0 0 9e6671aba2f4668d
+E10909 8 7/1/0 0/0 0 b541bc3251f99a55
+E10926 13 10/1/2 0/2 1 ff199cd83c995199
+E10928 9 8/0/1 0/1 0 2263b05d587301e2
+E10949 8 8/0/0 0/0 0 1abb3dcb74db067c
+E10959 8 8/0/0 0/0 0 bba537ab9c269da4
+E10964 8 8/0/0 0/0 0 c4a95902ebf2c095
+E10975 8 7/1/0 0/0 0 424edaeca25af087
+E11005 11 9/2/0 0/0 0 a2164e5f088bd259
+E11007 2 2/0/0 0/0 0 9d478ec0ff806b57
+E11011 8 7/1/0 0/0 0 a2c4dff5a729919e
+E11016 22 21/1/0 0/0 0 4c5c18ec5108bde3
+E11024 8 6/1/1 0/1 0 7f2907f34c5ffb4a
+E11034 35 35/0/0 0/0 0 412770d346f66a96
+E11037 8 7/1/0 0/0 0 3b5795feb79e650b
+E11045 7 6/1/0 0/0 0 f9426a92ec955fc9
+E11050 5 3/2/0 0/0 0 2e2ccf0a41d45d0c
+E11077 7 7/0/0 0/0 0 c9393c86c2a55def
+E11096 6 6/0/0 0/0 0 eb543627fdec554e
+E11103 6 6/0/0 0/0 0 7e55858eb0394a72
+E11125 3 3/0/0 0/0 0 501e715e4ec4ef93
+E11129 8 7/1/0 0/0 0 b5ffcb130ccba2bc
+E11157 9 6/1/2 0/2 0 1b89abfb888478a6
+E11160 7 4/1/2 0/2 0 7fedfc5afc2e5cdc
+E11166 4 4/0/0 0/0 0 9e115c86b38adf69
+E11186 9 9/0/0 0/0 0 c53224abe099ef27
+E11195 11 10/1/0 0/0 0 d43d51e36cf593e3
+E11197 14 9/3/2 0/2 1 a3315b2e859444cf
+E11205 10 8/1/1 0/1 0 549d4fe42d83f4dd
+E11247 7 7/0/0 0/0 0 c111b24ec2d0b4ee
+E11356 139 124/7/8 0/8 3 1a1ec9563f4fcabc
+E11442 4 4/0/0 0/0 0 d6ec74583a1933d4
+E11450 10 8/2/0 0/0 0 b118d81674374d33
+E11457 6 6/0/0 0/0 0 a4855b854623969d
+E11472 10 8/2/0 0/0 0 506e31633231afa3
+E11473 8 7/1/0 0/0 0 da1333953d98d788
+E11480 11 10/1/0 0/0 0 93a5ac4f5e35a73e
+E11487 7 7/0/0 0/0 0 c74037961c0a7c05
+E11505 4 4/0/0 0/0 0 158219684c908693
+E11512 8 7/1/0 0/0 0 6205aaf0ac8f08ba
+E11516 5 4/0/1 0/1 0 4b86e3c7d078bb78
+E11525 8 7/1/0 0/0 0 705338b03c07617b
+E11526 9 6/1/2 0/2 1 c795a60c3f33aedc
+E11537 9 8/1/0 0/0 0 5e1099fd1d76d4eb
+E11548 7 6/1/0 0/0 0 b618077e70f87287
+E11569 8 8/0/0 0/0 0 d0f05b9c51dda291
+E11577 6 6/0/0 0/0 0 4ab52d9bbadf90f8
+E11580 4 4/0/0 0/0 0 a550afcba20026de
+E11592 6 6/0/0 0/0 0 389db5105ced2eee
+E11598 4 4/0/0 0/0 0 cfe4d61af7b08b93
+E11603 10 8/2/0 0/0 0 2d2739f0fcd5a8b2
+E11604 8 6/0/2 0/2 1 9266cb1992ba15b1
+E11622 9 8/1/0 0/0 0 59b27f163cf1befb
+E11625 3 3/0/0 0/0 0 5647f6c030a17466
+E11628 8 8/0/0 0/0 0 3e3265e037ea2f36
+E11664 7 7/0/0 0/0 0 4bbac522cd431cfb
+E11666 6 6/0/0 0/0 0 e419dd264cb6a228
+E11687 7 7/0/0 0/0 0 9f1a71e5ec973e31
+E11699 9 8/1/0 0/0 1 b69abf261d162a81
+E11704 9 8/1/0 0/0 0 a4b5e2de7e88e47f
+E11710 6 6/0/0 0/0 0 a96719540c6ec285
+E11730 7 7/0/0 0/0 0 f31faf124f353ac4
+E11731 7 7/0/0 0/0 0 1b95f7d412d0cc75
+`
+    .trim()
+    .split(/\r?\n/)
+    .map((line) => {
+      const at = line.indexOf(' ')
+      return [line.slice(0, at), line.slice(at + 1)] as const
+    }),
+)

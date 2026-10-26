@@ -1,0 +1,214 @@
+/**
+ * Remembered mappings. A profile stores the user's column choices and per-column date order for
+ * one file layout (identified by a fingerprint of its headers), so the same export from the same
+ * system maps itself next time. Learned synonyms remember single header picks across layouts.
+ *
+ * Both live in the app's own IndexedDB store (`@/data/idb`):
+ *
+ *   hcp:profile:<dataset>:<fingerprint>   one file layout's mapping (8 hex characters)
+ *   hcp:profile:<dataset>:synonyms        header picks learned for the dataset
+ *
+ * Everything stays in this browser; storage failures are ignored (the mapping is just not
+ * remembered).
+ */
+import { idbDel, idbGet, idbKeys, idbSet } from '@/data/idb'
+import { fnv } from '@/lib/stats'
+import { DATASET_KEYS, type DatasetDef, type DatasetKey } from '../schema'
+import { normalizeHeader } from './text'
+import type { ApplyOptions, DateOrder, HourlyConversion, Mapping } from './types'
+
+export interface MappingProfile {
+  version: 1
+  dataset: DatasetKey
+  fingerprint: string
+  /** Field key → normalized header (null = the user left it unmapped on purpose). */
+  fields: Record<string, string | null>
+  /** Normalized header → date order. */
+  dateOrders: Record<string, DateOrder>
+  percentWhole: Record<string, boolean>
+  hourlyToAnnual: HourlyConversion | null
+  valueMaps: Record<string, Record<string, string | null>>
+  savedAt: string
+}
+
+/** Order-independent FNV-1a fingerprint of the normalized headers (8 hex characters). */
+export function headerFingerprint(headers: readonly string[]): string {
+  const norm = headers.map(normalizeHeader).sort()
+  return fnv(norm.join('|')).toString(16).padStart(8, '0')
+}
+
+const PROFILE_PREFIX = 'hcp:profile:'
+const profileKey = (dataset: DatasetKey, fp: string) => `hcp:profile:${dataset}:${fp}`
+const synonymsKey = (dataset: DatasetKey) => `hcp:profile:${dataset}:synonyms`
+
+/** Capture the current mapping and options as a profile for this header layout, saved at `savedAt`. */
+export function makeProfile(
+  dataset: DatasetKey,
+  headers: readonly string[],
+  mapping: Mapping,
+  options: ApplyOptions = {},
+  savedAt = '',
+): MappingProfile {
+  const fields: Record<string, string | null> = {}
+  for (const [k, m] of Object.entries(mapping)) fields[k] = m.header ? normalizeHeader(m.header) : null
+  const dateOrders: Record<string, DateOrder> = {}
+  for (const [h, o] of Object.entries(options.dateOrders ?? {})) dateOrders[normalizeHeader(h)] = o
+  const hourly = options.hourlyToAnnual ?? null
+  return {
+    version: 1,
+    dataset,
+    fingerprint: headerFingerprint(headers),
+    fields,
+    dateOrders,
+    percentWhole: { ...(options.percentWhole ?? {}) },
+    hourlyToAnnual: hourly
+      ? { hours: hourly.hours, basisHeader: hourly.basisHeader ? normalizeHeader(hourly.basisHeader) : null }
+      : null,
+    valueMaps: { ...(options.valueMaps ?? {}) },
+    savedAt,
+  }
+}
+
+/** Turn a stored profile back into a mapping and options for this file's actual headers. */
+export function applyProfile(
+  profile: MappingProfile,
+  headers: readonly string[],
+  def: DatasetDef,
+): { mapping: Mapping; options: ApplyOptions } {
+  const byNorm = new Map(headers.map((h) => [normalizeHeader(h), h]))
+  const mapping: Mapping = {}
+  for (const f of def.fields) {
+    const norm = Object.hasOwn(profile.fields, f.key) ? profile.fields[f.key] : undefined
+    const header = norm ? (byNorm.get(norm) ?? null) : null
+    mapping[f.key] = header
+      ? { header, confidence: 'high', score: 1, reason: 'Saved from your last import of this layout' }
+      : {
+          header: null,
+          confidence: 'low',
+          score: 0,
+          reason: norm === null ? 'Left unmapped last time' : 'No matching column',
+        }
+  }
+  const dateOrders: Record<string, DateOrder> = {}
+  for (const [norm, order] of Object.entries(profile.dateOrders)) {
+    const h = byNorm.get(norm)
+    if (h) dateOrders[h] = order
+  }
+  const hourly = profile.hourlyToAnnual
+  return {
+    mapping,
+    options: {
+      dateOrders,
+      percentWhole: { ...profile.percentWhole },
+      hourlyToAnnual: hourly
+        ? {
+            hours: hourly.hours,
+            basisHeader: hourly.basisHeader ? (byNorm.get(hourly.basisHeader) ?? null) : null,
+          }
+        : null,
+      valueMaps: { ...profile.valueMaps },
+    },
+  }
+}
+
+const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
+
+function isProfile(v: unknown): v is MappingProfile {
+  if (!isObj(v)) return false
+  return (
+    v.version === 1 &&
+    typeof v.fingerprint === 'string' &&
+    isObj(v.fields) &&
+    isObj(v.dateOrders) &&
+    isObj(v.percentWhole) &&
+    isObj(v.valueMaps)
+  )
+}
+
+/** The saved profile for this dataset and header layout, or null. */
+export async function loadProfile(
+  dataset: DatasetKey,
+  headers: readonly string[],
+): Promise<MappingProfile | null> {
+  try {
+    const v = await idbGet<unknown>(profileKey(dataset, headerFingerprint(headers)))
+    return isProfile(v) && v.dataset === dataset ? v : null
+  } catch {
+    return null
+  }
+}
+
+export async function saveProfile(profile: MappingProfile): Promise<void> {
+  try {
+    await idbSet(profileKey(profile.dataset, profile.fingerprint), profile)
+  } catch {
+    /* storage unavailable: the mapping just won't be remembered */
+  }
+}
+
+export async function deleteProfile(dataset: DatasetKey, fingerprint: string): Promise<void> {
+  try {
+    await idbDel(profileKey(dataset, fingerprint))
+  } catch {
+    /* nothing stored */
+  }
+}
+
+/**
+ * Forget every remembered mapping: the saved profile of each file layout and, unless
+ * `{ synonyms: false }`, the single header picks learned for each dataset. Resolves to the number
+ * of file layouts forgotten (0 when storage is unavailable).
+ */
+export async function forgetAllProfiles(opts: { synonyms?: boolean } = {}): Promise<number> {
+  let stored: string[]
+  try {
+    stored = await idbKeys()
+  } catch {
+    return 0
+  }
+  const learned = new Set(DATASET_KEYS.map(synonymsKey))
+  let n = 0
+  for (const k of stored) {
+    if (!k.startsWith(PROFILE_PREFIX)) continue
+    const isLearned = learned.has(k)
+    if (isLearned && opts.synonyms === false) continue
+    try {
+      await idbDel(k)
+      if (!isLearned) n++
+    } catch {
+      /* left as it is */
+    }
+  }
+  return n
+}
+
+/** Normalized header → field key picks the user made for this dataset. */
+export async function loadLearnedSynonyms(dataset: DatasetKey): Promise<Record<string, string>> {
+  try {
+    const v = await idbGet<unknown>(synonymsKey(dataset))
+    if (!isObj(v)) return {}
+    return Object.fromEntries(
+      Object.entries(v).filter((e): e is [string, string] => typeof e[1] === 'string'),
+    )
+  } catch {
+    return {}
+  }
+}
+
+/** Remember that `header` means `fieldKey` in this dataset (call when the user overrides a guess). */
+export async function learnSynonym(dataset: DatasetKey, header: string, fieldKey: string): Promise<void> {
+  try {
+    const next = { ...(await loadLearnedSynonyms(dataset)), [normalizeHeader(header)]: fieldKey }
+    await idbSet(synonymsKey(dataset), next)
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+export async function forgetLearnedSynonyms(dataset: DatasetKey): Promise<void> {
+  try {
+    await idbDel(synonymsKey(dataset))
+  } catch {
+    /* storage unavailable */
+  }
+}

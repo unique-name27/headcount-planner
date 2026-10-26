@@ -1,0 +1,964 @@
+Surface                                  Mode  Decision  How
+------------------------------------------------------------
+view:home                                Adm   Hidden    HR admin opens on the Data room. Switch modes to see a role's home.
+view:home                                Mgr   Hidden    Managers open on My team.
+view:team                                Adm   Hidden    My team is the Manager mode home.
+view:team                                HRBP  Hidden    My team is the Manager mode home.
+view:team                                Lead  Hidden    My team is the Manager mode home.
+view:team                                Fin   Hidden    My team is the Manager mode home.
+view:plan                                HRBP  Limited   Your business unit.
+view:plan                                Lead  Limited   Your org.
+view:plan                                Fin   Limited   Every unit; Transfers are left out.
+view:plan                                Mgr   Limited   Your team only, with no cost.
+view:requests                            HRBP  Limited   Your business unit.
+view:requests                            Lead  Limited   Your org.
+view:requests                            Fin   Limited   Every unit; eliminations and changes to a filled seat show position ID, title, level and org only.
+view:requests                            Mgr   Limited   Your team's requests and the ones you approve, in heads.
+view:forecast                            HRBP  Limited   Cost rounded down to $0.1M per team, at QTD, YTD and full year. Monthly cost shows as heads; exit run rate and cost incl. SBC show in Finance mode.
+view:forecast                            Lead  Limited   Cost rounded down to $0.1M per team, at QTD, YTD and full year. Monthly cost shows as heads; exit run rate and cost incl. SBC show in Finance mode.
+view:forecast                            Mgr   Hidden    The forecast shows cost and modeled exits. My team shows your heads and status.
+view:targets                             HRBP  Limited   Your unit.
+view:targets                             Lead  Limited   Your org.
+view:targets                             Mgr   Hidden    Targets are Finance's heads and cost per org. My team shows your allocation.
+view:whatif                              Fin   Limited   Levers and results. Turning them into requests is for HRBPs and leaders.
+view:whatif                              Mgr   Hidden    What if shows cost and gap.
+view:finance                             HRBP  Limited   Versions, freezes and bands are read only; Export is Finance's.
+view:finance                             Lead  Hidden    Finance settings are Finance's. Leaders compare versions with the comparison picker.
+view:finance                             Mgr   Hidden    Finance settings are Finance's. Leaders compare versions with the comparison picker.
+tab:home.overview                        Adm   Hidden    Its view is not shown in HR admin mode.
+tab:home.overview                        Mgr   Hidden    Its view is not shown in Manager mode.
+tab:team.overview                        Adm   Hidden    Its view is not shown in HR admin mode.
+tab:team.overview                        HRBP  Hidden    Its view is not shown in HRBP mode.
+tab:team.overview                        Lead  Hidden    Its view is not shown in Leader mode.
+tab:team.overview                        Fin   Hidden    Its view is not shown in Finance mode.
+tab:plan.overview                        Mgr   Hidden    The plan overview carries cost and other teams. My team shows your heads.
+tab:plan.positions                       HRBP  Limited   Band estimates for Open and Planned seats; nothing tied to a filled seat or an offer.
+tab:plan.positions                       Lead  Limited   Band estimates for Open and Planned seats; nothing tied to a filled seat or an offer.
+tab:plan.positions                       Fin   Limited   Band estimates for Open and Planned seats; nothing tied to a filled seat or an offer.
+tab:plan.positions                       Mgr   Limited   Heads, status and standard heads by month, no cost columns.
+tab:plan.openings                        Fin   Limited   No offer amounts or one-time hiring costs per req.
+tab:plan.openings                        Mgr   Limited   Your team; an accepted offer shows as a date only.
+tab:plan.transfers                       Fin   Hidden    Transfers move named people. Finance sees their effect in the bridge and in Targets.
+tab:plan.transfers                       Mgr   Limited   Your team; names show, amounts do not.
+tab:requests.queue                       HRBP  Limited   Your unit or org.
+tab:requests.queue                       Lead  Limited   Your unit or org.
+tab:requests.queue                       Fin   Limited   Eliminations and filled-seat changes show position ID, title, level and org only.
+tab:requests.queue                       Mgr   Hidden    The queue spans other teams. Mine and Approvals hold yours.
+tab:requests.new                         Lead  Limited   Inside your team or org.
+tab:requests.new                         Fin   Hidden    Finance sets targets and gives final approval. It does not raise requests.
+tab:requests.new                         Mgr   Limited   Inside your team or org.
+tab:requests.approvals                   Mgr   Limited   Requests you approve as a manager's manager, in heads.
+tab:requests.cycle                       HRBP  Limited   Your business unit.
+tab:requests.cycle                       Lead  Limited   Your org, within its envelope.
+tab:requests.cycle                       Mgr   Limited   Your ranked asks and the cycle's dates.
+tab:forecast.overview                    HRBP  Limited   Cost rounded down to $0.1M per team, at QTD, YTD and full year. Monthly cost shows as heads; exit run rate and cost incl. SBC show in Finance mode.
+tab:forecast.overview                    Lead  Limited   Cost rounded down to $0.1M per team, at QTD, YTD and full year. Monthly cost shows as heads; exit run rate and cost incl. SBC show in Finance mode.
+tab:forecast.overview                    Mgr   Hidden    Its view is not shown in Manager mode.
+tab:forecast.variance                    HRBP  Limited   Cost rounded down to $0.1M per team, at QTD, YTD and full year. Monthly cost shows as heads; exit run rate and cost incl. SBC show in Finance mode.
+tab:forecast.variance                    Lead  Limited   Cost rounded down to $0.1M per team, at QTD, YTD and full year. Monthly cost shows as heads; exit run rate and cost incl. SBC show in Finance mode.
+tab:forecast.variance                    Mgr   Hidden    Its view is not shown in Manager mode.
+tab:forecast.bridge                      HRBP  Limited   Cost rounded down to $0.1M per team, at QTD, YTD and full year. Monthly cost shows as heads; exit run rate and cost incl. SBC show in Finance mode.
+tab:forecast.bridge                      Lead  Limited   Cost rounded down to $0.1M per team, at QTD, YTD and full year. Monthly cost shows as heads; exit run rate and cost incl. SBC show in Finance mode.
+tab:forecast.bridge                      Mgr   Hidden    Its view is not shown in Manager mode.
+tab:targets.gap                          HRBP  Limited   Your unit.
+tab:targets.gap                          Lead  Limited   Your org.
+tab:targets.gap                          Mgr   Hidden    Its view is not shown in Manager mode.
+tab:targets.suborgs                      HRBP  Limited   Read only. Leaders split sub-org targets.
+tab:targets.suborgs                      Mgr   Hidden    Its view is not shown in Manager mode.
+tab:targets.tree                         HRBP  Limited   Your unit.
+tab:targets.tree                         Lead  Limited   Your org.
+tab:targets.tree                         Mgr   Hidden    Its view is not shown in Manager mode.
+tab:whatif.levers                        Fin   Limited   Levers and results. Turning them into requests is for HRBPs and leaders.
+tab:whatif.levers                        Mgr   Hidden    Its view is not shown in Manager mode.
+tab:finance.versions                     HRBP  Limited   Read only.
+tab:finance.versions                     Lead  Hidden    Its view is not shown in Leader mode.
+tab:finance.versions                     Mgr   Hidden    Its view is not shown in Manager mode.
+tab:finance.assumptions                  HRBP  Limited   Bands, FX, loads and attrition are read only. Your unit's time to fill, fill rate and backfill settings can be edited in Working.
+tab:finance.assumptions                  Lead  Hidden    Its view is not shown in Leader mode.
+tab:finance.assumptions                  Mgr   Hidden    Its view is not shown in Manager mode.
+tab:finance.freezes                      HRBP  Limited   Read only. Openings held show; savings amounts are Finance's.
+tab:finance.freezes                      Lead  Hidden    Its view is not shown in Leader mode.
+tab:finance.freezes                      Mgr   Hidden    Its view is not shown in Manager mode.
+tab:finance.reconcile                    HRBP  Limited   Your business unit.
+tab:finance.reconcile                    Lead  Hidden    Its view is not shown in Leader mode.
+tab:finance.reconcile                    Mgr   Hidden    Its view is not shown in Manager mode.
+tab:finance.export                       HRBP  Hidden    Load files are Finance's and HR admin's.
+tab:finance.export                       Lead  Hidden    Its view is not shown in Leader mode.
+tab:finance.export                       Fin   Limited   Groups under 5 are suppressed in the load file.
+tab:finance.export                       Mgr   Hidden    Its view is not shown in Manager mode.
+tab:finance.assumptions:trade-rates      HRBP  Limited   Read only.
+tab:finance.assumptions:trade-rates      Lead  Hidden    Leaders see weights on requests.
+tab:finance.assumptions:trade-rates      Mgr   Hidden    Finance settings are Finance's. Leaders compare versions with the comparison picker.
+page:data                                HRBP  Hidden    The Data room is HR admin's.
+page:data                                Lead  Hidden    The Data room is HR admin's.
+page:data                                Fin   Hidden    The Data room is HR admin's.
+page:data                                Mgr   Hidden    The Data room is HR admin's.
+page:actions                             HRBP  Limited   Items about your team, unit or org.
+page:actions                             Lead  Limited   Items about your team, unit or org.
+page:actions                             Fin   Limited   No item is about one person.
+page:actions                             Mgr   Limited   Items about your team, unit or org.
+page:audit                               HRBP  Limited   Your unit, org or the company; pay and cost changes read 'changed'; the chain check shows in HR admin.
+page:audit                               Lead  Limited   Your unit, org or the company; pay and cost changes read 'changed'; the chain check shows in HR admin.
+page:audit                               Fin   Limited   Your unit, org or the company; pay and cost changes read 'changed'; the chain check shows in HR admin.
+page:audit                               Mgr   Hidden    The audit spans other teams. Changes to your requests show on the requests.
+data:datasets                            HRBP  Hidden    The Data room is not shown in HRBP mode.
+data:datasets                            Lead  Hidden    The Data room is not shown in Leader mode.
+data:datasets                            Fin   Hidden    The Data room is not shown in Finance mode.
+data:datasets                            Mgr   Hidden    The Data room is not shown in Manager mode.
+data:quality                             HRBP  Hidden    The Data room is not shown in HRBP mode.
+data:quality                             Lead  Hidden    The Data room is not shown in Leader mode.
+data:quality                             Fin   Hidden    The Data room is not shown in Finance mode.
+data:quality                             Mgr   Hidden    The Data room is not shown in Manager mode.
+data:metrics                             HRBP  Hidden    The Data room is not shown in HRBP mode.
+data:metrics                             Lead  Hidden    The Data room is not shown in Leader mode.
+data:metrics                             Fin   Hidden    The Data room is not shown in Finance mode.
+data:metrics                             Mgr   Hidden    The Data room is not shown in Manager mode.
+data:lists                               HRBP  Hidden    The Data room is not shown in HRBP mode.
+data:lists                               Lead  Hidden    The Data room is not shown in Leader mode.
+data:lists                               Fin   Hidden    The Data room is not shown in Finance mode.
+data:lists                               Mgr   Hidden    The Data room is not shown in Manager mode.
+data:workspace                           HRBP  Hidden    The Data room is not shown in HRBP mode.
+data:workspace                           Lead  Hidden    The Data room is not shown in Leader mode.
+data:workspace                           Fin   Hidden    The Data room is not shown in Finance mode.
+data:workspace                           Mgr   Hidden    The Data room is not shown in Manager mode.
+settings:data                            HRBP  Hidden    The as-of date is set by HR admin.
+settings:data                            Lead  Hidden    The as-of date is set by HR admin.
+settings:data                            Fin   Hidden    The as-of date is set by HR admin.
+settings:data                            Mgr   Hidden    The as-of date is set by HR admin.
+settings:formulas                        HRBP  Limited   Metrics of the shown views only, without links to Metric definitions.
+settings:formulas                        Lead  Limited   Metrics of the shown views only, without links to Metric definitions.
+settings:formulas                        Fin   Limited   Metrics of the shown views only, without links to Metric definitions.
+settings:formulas                        Mgr   Limited   Metrics of the shown views only, without links to Metric definitions.
+settings:lists                           HRBP  Hidden    The official lists are kept by HR admin.
+settings:lists                           Lead  Hidden    The official lists are kept by HR admin.
+settings:lists                           Fin   Hidden    The official lists are kept by HR admin.
+settings:lists                           Mgr   Hidden    The official lists are kept by HR admin.
+settings:privacy                         HRBP  Hidden    HRBP mode shows totals rounded to $0.1M.
+settings:privacy                         Lead  Hidden    Leader mode shows totals rounded to $0.1M.
+settings:privacy                         Fin   Hidden    Finance mode shows totals, never one person's pay.
+settings:privacy                         Mgr   Hidden    Manager mode shows no amounts.
+settings:device                          HRBP  Limited   Clear everything only; settings files are hidden.
+settings:device                          Lead  Limited   Clear everything only; settings files are hidden.
+settings:device                          Fin   Limited   Clear everything only; settings files are hidden.
+settings:device                          Mgr   Limited   Clear everything only; settings files are hidden.
+drill:positions                          HRBP  Limited   Rows outside your business unit are left out.
+drill:positions                          Lead  Limited   Rows outside your org are left out.
+drill:positions                          Fin   Limited   Amount columns are left out of records; cost totals cover 5 or more costed people.
+drill:positions                          Mgr   Limited   Rows outside your team are left out.
+drill:planLines                          HRBP  Limited   Rows outside your business unit are left out.
+drill:planLines                          Lead  Limited   Rows outside your org are left out.
+drill:planLines                          Fin   Limited   Amount columns are left out of records; cost totals cover 5 or more costed people.
+drill:planLines                          Mgr   Hidden    These records are not shown in Manager mode.
+drill:assignments                        HRBP  Limited   Rows outside your business unit are left out.
+drill:assignments                        Lead  Limited   Rows outside your org are left out.
+drill:assignments                        Fin   Limited   Amount columns are left out of records; cost totals cover 5 or more costed people.
+drill:assignments                        Mgr   Hidden    These records are not shown in Manager mode.
+drill:workers                            HRBP  Limited   Rows outside your business unit are left out.
+drill:workers                            Lead  Limited   Rows outside your org are left out.
+drill:workers                            Fin   Limited   Amount columns are left out of records; cost totals cover 5 or more costed people.
+drill:workers                            Mgr   Hidden    These records are not shown in Manager mode.
+drill:reqs                               HRBP  Limited   Rows outside your business unit are left out.
+drill:reqs                               Lead  Limited   Rows outside your org are left out.
+drill:reqs                               Fin   Limited   Amount columns are left out of records; cost totals cover 5 or more costed people.
+drill:reqs                               Mgr   Limited   Rows outside your team are left out.
+drill:requests                           HRBP  Limited   Rows outside your business unit are left out.
+drill:requests                           Lead  Limited   Rows outside your org are left out.
+drill:requests                           Fin   Limited   Amount columns are left out of records; cost totals cover 5 or more costed people.
+drill:requests                           Mgr   Limited   Rows outside your team are left out.
+drill:targets                            HRBP  Limited   Rows outside your business unit are left out.
+drill:targets                            Lead  Limited   Rows outside your org are left out.
+drill:targets                            Fin   Limited   Amount columns are left out of records; cost totals cover 5 or more costed people.
+drill:targets                            Mgr   Hidden    These records are not shown in Manager mode.
+drill:freezes                            HRBP  Limited   Rows outside your business unit are left out.
+drill:freezes                            Lead  Limited   Rows outside your org are left out.
+drill:freezes                            Fin   Limited   Amount columns are left out of records; cost totals cover 5 or more costed people.
+drill:freezes                            Mgr   Hidden    These records are not shown in Manager mode.
+drill:assumptions                        HRBP  Limited   Rows outside your business unit are left out.
+drill:assumptions                        Lead  Limited   Rows outside your org are left out.
+drill:assumptions                        Fin   Limited   Amount columns are left out of records; cost totals cover 5 or more costed people.
+drill:assumptions                        Mgr   Hidden    These records are not shown in Manager mode.
+drill:versions                           HRBP  Limited   Rows outside your business unit are left out.
+drill:versions                           Lead  Limited   Rows outside your org are left out.
+drill:versions                           Fin   Limited   Amount columns are left out of records; cost totals cover 5 or more costed people.
+drill:versions                           Mgr   Hidden    These records are not shown in Manager mode.
+drill:adjustments                        HRBP  Hidden    Back-dated adjustments show as counts in HRBP mode.
+drill:adjustments                        Lead  Hidden    Back-dated adjustments are Finance's.
+drill:adjustments                        Fin   Limited   Amount columns are left out of records; cost totals cover 5 or more costed people.
+drill:adjustments                        Mgr   Hidden    These records are not shown in Manager mode.
+drill:audit                              HRBP  Limited   Rows outside your business unit are left out.
+drill:audit                              Lead  Limited   Rows outside your org are left out.
+drill:audit                              Fin   Limited   Amount columns are left out of records; cost totals cover 5 or more costed people.
+drill:audit                              Mgr   Hidden    These records are not shown in Manager mode.
+drill:exceptions                         HRBP  Limited   Rows outside your business unit are left out.
+drill:exceptions                         Lead  Hidden    Reconciliation is for HRBPs and Finance.
+drill:exceptions                         Fin   Limited   Amount columns are left out of records; cost totals cover 5 or more costed people.
+drill:exceptions                         Mgr   Hidden    These records are not shown in Manager mode.
+drill:costGroups                         HRBP  Limited   Rows outside your business unit are left out.
+drill:costGroups                         Lead  Limited   Rows outside your org are left out.
+drill:costGroups                         Fin   Limited   Amount columns are left out of records; cost totals cover 5 or more costed people.
+drill:costGroups                         Mgr   Hidden    These records are not shown in Manager mode.
+drill:actionItems                        HRBP  Limited   Rows outside your business unit are left out.
+drill:actionItems                        Lead  Limited   Rows outside your org are left out.
+drill:actionItems                        Fin   Limited   Amount columns are left out of records; cost totals cover 5 or more costed people.
+drill:actionItems                        Mgr   Limited   Rows outside your team are left out.
+drill:actionOwners                       HRBP  Limited   Rows outside your business unit are left out.
+drill:actionOwners                       Lead  Limited   Rows outside your org are left out.
+drill:actionOwners                       Fin   Limited   Amount columns are left out of records; cost totals cover 5 or more costed people.
+drill:actionOwners                       Mgr   Limited   Rows outside your team are left out.
+dataset:workers                          Fin   Limited   No leave fields.
+dataset:comp                             HRBP  Limited   Read for cost totals under the guard; no one's pay is listed.
+dataset:comp                             Lead  Limited   Read for cost totals under the guard; no one's pay is listed.
+dataset:comp                             Fin   Limited   Read for cost totals over 5 or more costed people; no one's pay is listed.
+dataset:comp                             Mgr   Hidden    Pay records are not part of Manager mode.
+dataset:targets                          Mgr   Hidden    Targets are Finance's heads and cost per org.
+dataset:assumptions                      Mgr   Hidden    Rates and drivers are Finance's.
+figure:team-*                            Adm   Hidden    Its view is not shown in HR admin mode.
+figure:team-*                            HRBP  Hidden    Its view is not shown in HRBP mode.
+figure:team-*                            Lead  Hidden    Its view is not shown in Leader mode.
+figure:team-*                            Fin   Hidden    Its view is not shown in Finance mode.
+figure:forecast-*                        Mgr   Hidden    Its view is not shown in Manager mode.
+figure:targets-*                         Mgr   Hidden    Its view is not shown in Manager mode.
+figure:whatif-*                          Mgr   Hidden    Its view is not shown in Manager mode.
+figure:finance-*                         Lead  Hidden    Its view is not shown in Leader mode.
+figure:finance-*                         Mgr   Hidden    Its view is not shown in Manager mode.
+figure:audit-*                           Mgr   Hidden    Its view is not shown in Manager mode.
+figure:data-*                            HRBP  Hidden    Its view is not shown in HRBP mode.
+figure:data-*                            Lead  Hidden    Its view is not shown in Leader mode.
+figure:data-*                            Fin   Hidden    Its view is not shown in Finance mode.
+figure:data-*                            Mgr   Hidden    Its view is not shown in Manager mode.
+figure:home-unit-*                       Adm   Hidden    Its view is not shown in HR admin mode.
+figure:home-unit-*                       Lead  Hidden    Another mode's home.
+figure:home-unit-*                       Fin   Hidden    Another mode's home.
+figure:home-unit-*                       Mgr   Hidden    Its view is not shown in Manager mode.
+figure:home-rollup-*                     Adm   Hidden    Its view is not shown in HR admin mode.
+figure:home-rollup-*                     HRBP  Hidden    Another mode's home.
+figure:home-rollup-*                     Fin   Hidden    Another mode's home.
+figure:home-rollup-*                     Mgr   Hidden    Its view is not shown in Manager mode.
+figure:home-fin-*                        Adm   Hidden    Its view is not shown in HR admin mode.
+figure:home-fin-*                        HRBP  Hidden    Another mode's home.
+figure:home-fin-*                        Lead  Hidden    Another mode's home.
+figure:home-fin-*                        Mgr   Hidden    Its view is not shown in Manager mode.
+figure:team-heads-vs-allocation          Adm   Hidden    Its view is not shown in HR admin mode.
+figure:team-heads-vs-allocation          HRBP  Hidden    Its view is not shown in HRBP mode.
+figure:team-heads-vs-allocation          Lead  Hidden    Its view is not shown in Leader mode.
+figure:team-heads-vs-allocation          Fin   Hidden    Its view is not shown in Finance mode.
+figure:home-unit-openings                Adm   Hidden    Its view is not shown in HR admin mode.
+figure:home-unit-openings                Lead  Hidden    Another mode's home.
+figure:home-unit-openings                Fin   Hidden    Another mode's home.
+figure:home-unit-openings                Mgr   Hidden    Its view is not shown in Manager mode.
+figure:home-unit-forecast                Adm   Hidden    Its view is not shown in HR admin mode.
+figure:home-unit-forecast                Lead  Hidden    Another mode's home.
+figure:home-unit-forecast                Fin   Hidden    Another mode's home.
+figure:home-unit-forecast                Mgr   Hidden    Its view is not shown in Manager mode.
+figure:home-rollup-suborgs               Adm   Hidden    Its view is not shown in HR admin mode.
+figure:home-rollup-suborgs               HRBP  Hidden    Another mode's home.
+figure:home-rollup-suborgs               Fin   Hidden    Another mode's home.
+figure:home-rollup-suborgs               Mgr   Hidden    Its view is not shown in Manager mode.
+figure:home-fin-bridge                   Adm   Hidden    Its view is not shown in HR admin mode.
+figure:home-fin-bridge                   HRBP  Hidden    Another mode's home.
+figure:home-fin-bridge                   Lead  Hidden    Another mode's home.
+figure:home-fin-bridge                   Mgr   Hidden    Its view is not shown in Manager mode.
+figure:home-fin-cost-unit                Adm   Hidden    Its view is not shown in HR admin mode.
+figure:home-fin-cost-unit                HRBP  Hidden    Another mode's home.
+figure:home-fin-cost-unit                Lead  Hidden    Another mode's home.
+figure:home-fin-cost-unit                Mgr   Hidden    Its view is not shown in Manager mode.
+figure:home-attention                    Adm   Hidden    Its view is not shown in HR admin mode.
+figure:home-attention                    Mgr   Hidden    Its view is not shown in Manager mode.
+figure:home-attention-wait               Adm   Hidden    Its view is not shown in HR admin mode.
+figure:home-attention-wait               Mgr   Hidden    Its view is not shown in Manager mode.
+figure:home-list                         Adm   Hidden    Its view is not shown in HR admin mode.
+figure:home-list                         Mgr   Hidden    Its view is not shown in Manager mode.
+metric:team.allocation.heads             HRBP  Hidden    None of the views it is on is shown in HRBP mode.
+metric:team.allocation.heads             Lead  Hidden    None of the views it is on is shown in Leader mode.
+metric:team.allocation.heads             Fin   Hidden    None of the views it is on is shown in Finance mode.
+metric:team.allocation.filled            HRBP  Hidden    None of the views it is on is shown in HRBP mode.
+metric:team.allocation.filled            Lead  Hidden    None of the views it is on is shown in Leader mode.
+metric:team.allocation.filled            Fin   Hidden    None of the views it is on is shown in Finance mode.
+metric:team.allocation.open              HRBP  Hidden    None of the views it is on is shown in HRBP mode.
+metric:team.allocation.open              Lead  Hidden    None of the views it is on is shown in Leader mode.
+metric:team.allocation.open              Fin   Hidden    None of the views it is on is shown in Finance mode.
+metric:team.allocation.planned           HRBP  Hidden    None of the views it is on is shown in HRBP mode.
+metric:team.allocation.planned           Lead  Hidden    None of the views it is on is shown in Leader mode.
+metric:team.allocation.planned           Fin   Hidden    None of the views it is on is shown in Finance mode.
+metric:team.allocation.leftToFill        HRBP  Hidden    None of the views it is on is shown in HRBP mode.
+metric:team.allocation.leftToFill        Lead  Hidden    None of the views it is on is shown in Leader mode.
+metric:team.allocation.leftToFill        Fin   Hidden    None of the views it is on is shown in Finance mode.
+metric:team.allocation.leftToRequest     HRBP  Hidden    None of the views it is on is shown in HRBP mode.
+metric:team.allocation.leftToRequest     Lead  Hidden    None of the views it is on is shown in Leader mode.
+metric:team.allocation.leftToRequest     Fin   Hidden    None of the views it is on is shown in Finance mode.
+metric:team.requests.pending             HRBP  Hidden    None of the views it is on is shown in HRBP mode.
+metric:team.requests.pending             Lead  Hidden    None of the views it is on is shown in Leader mode.
+metric:team.requests.pending             Fin   Hidden    None of the views it is on is shown in Finance mode.
+metric:team.budget.status                HRBP  Hidden    None of the views it is on is shown in HRBP mode.
+metric:team.budget.status                Lead  Hidden    None of the views it is on is shown in Leader mode.
+metric:team.budget.status                Fin   Hidden    None of the views it is on is shown in Finance mode.
+metric:team.trade.standardHeads          HRBP  Hidden    None of the views it is on is shown in HRBP mode.
+metric:team.trade.standardHeads          Lead  Hidden    None of the views it is on is shown in Leader mode.
+metric:team.trade.standardHeads          Fin   Hidden    None of the views it is on is shown in Finance mode.
+metric:plan.leave.onLeave                Fin   Hidden    Leave is not shown in this mode.
+metric:plan.leave.onLeave                Mgr   Hidden    Leave is not shown in this mode.
+metric:plan.cost.loaded                  Mgr   Hidden    Manager mode shows no amounts.
+metric:plan.cost.loadedInclSbc           HRBP  Hidden    Cost incl. SBC shows in Finance mode.
+metric:plan.cost.loadedInclSbc           Lead  Hidden    Cost incl. SBC shows in Finance mode.
+metric:plan.cost.loadedInclSbc           Mgr   Hidden    Manager mode shows no amounts.
+metric:plan.cost.component               HRBP  Hidden    This mode shows loaded cost at QTD, YTD and full year only.
+metric:plan.cost.component               Lead  Hidden    This mode shows loaded cost at QTD, YTD and full year only.
+metric:plan.cost.component               Mgr   Hidden    Manager mode shows no amounts.
+metric:plan.cost.perHead                 Mgr   Hidden    Manager mode shows no amounts.
+metric:plan.cost.openBand                Mgr   Hidden    Manager mode shows no amounts.
+metric:plan.cost.bandEstimate            Mgr   Hidden    Manager mode shows no amounts.
+metric:requests.chain.leaderThreshold    Mgr   Hidden    The leader threshold is an amount; the chain preview says when a request goes over it.
+metric:forecast.heads.monthEnd           Mgr   Hidden    None of the views it is on is shown in Manager mode.
+metric:forecast.heads.yearEnd            Mgr   Hidden    None of the views it is on is shown in Manager mode.
+metric:forecast.fte.average              Mgr   Hidden    None of the views it is on is shown in Manager mode.
+metric:forecast.starts.expected          Mgr   Hidden    None of the views it is on is shown in Manager mode.
+metric:forecast.starts.unfilled          Mgr   Hidden    None of the views it is on is shown in Manager mode.
+metric:forecast.exits.rate               Mgr   Hidden    None of the views it is on is shown in Manager mode.
+metric:forecast.exits.known              Mgr   Hidden    None of the views it is on is shown in Manager mode.
+metric:forecast.exits.modeled            Mgr   Hidden    None of the views it is on is shown in Manager mode.
+metric:forecast.backfills.modeled        Mgr   Hidden    None of the views it is on is shown in Manager mode.
+metric:forecast.cost.fullYear            Mgr   Hidden    Manager mode shows no amounts.
+metric:forecast.cost.exitRunRate         HRBP  Hidden    The exit run rate shows in Finance mode.
+metric:forecast.cost.exitRunRate         Lead  Hidden    The exit run rate shows in Finance mode.
+metric:forecast.cost.exitRunRate         Mgr   Hidden    Manager mode shows no amounts.
+metric:forecast.accuracy.cost            HRBP  Hidden    Forecast accuracy on cost shows in Finance mode.
+metric:forecast.accuracy.cost            Lead  Hidden    Forecast accuracy on cost shows in Finance mode.
+metric:forecast.accuracy.cost            Mgr   Hidden    Manager mode shows no amounts.
+metric:forecast.accuracy.heads           Mgr   Hidden    None of the views it is on is shown in Manager mode.
+metric:forecast.variance.heads           Mgr   Hidden    None of the views it is on is shown in Manager mode.
+metric:forecast.variance.fte             Mgr   Hidden    None of the views it is on is shown in Manager mode.
+metric:forecast.variance.cost            Mgr   Hidden    Manager mode shows no amounts.
+metric:forecast.bridge.step              Mgr   Hidden    Manager mode shows no amounts.
+metric:forecast.fx.effect                Mgr   Hidden    Manager mode shows no amounts.
+metric:targets.target.heads              Mgr   Hidden    None of the views it is on is shown in Manager mode.
+metric:targets.target.cost               Mgr   Hidden    Manager mode shows no amounts.
+metric:targets.asks.heads                Mgr   Hidden    None of the views it is on is shown in Manager mode.
+metric:targets.asks.cost                 Mgr   Hidden    Manager mode shows no amounts.
+metric:targets.gap.cost                  Mgr   Hidden    Manager mode shows no amounts.
+metric:targets.subOrg.unallocated        Mgr   Hidden    None of the views it is on is shown in Manager mode.
+metric:targets.tree.costCenter           Mgr   Hidden    None of the views it is on is shown in Manager mode.
+metric:targets.trades.heads              Mgr   Hidden    None of the views it is on is shown in Manager mode.
+metric:whatif.delta.heads                Mgr   Hidden    What if shows cost and gap.
+metric:whatif.delta.cost                 Mgr   Hidden    What if shows cost and gap.
+metric:whatif.delta.gap                  Mgr   Hidden    What if shows cost and gap.
+metric:finance.versions.locked           Lead  Hidden    None of the views it is on is shown in Leader mode.
+metric:finance.versions.locked           Mgr   Hidden    Finance's figures are not shown in Manager mode.
+metric:finance.close.adjustments         Lead  Hidden    None of the views it is on is shown in Leader mode.
+metric:finance.close.adjustments         Mgr   Hidden    Finance's figures are not shown in Manager mode.
+metric:finance.freeze.savings            HRBP  Hidden    Freeze savings amounts are Finance's; the openings held still show.
+metric:finance.freeze.savings            Lead  Hidden    Freeze savings amounts are Finance's; the openings held still show.
+metric:finance.freeze.savings            Mgr   Hidden    Finance's figures are not shown in Manager mode.
+metric:finance.recon.exceptions          Mgr   Hidden    Finance's figures are not shown in Manager mode.
+metric:finance.recon.costCenterMismatch  Lead  Hidden    None of the views it is on is shown in Leader mode.
+metric:finance.recon.costCenterMismatch  Mgr   Hidden    Finance's figures are not shown in Manager mode.
+metric:finance.trade.standardHead        HRBP  Limited   Read only.
+metric:finance.trade.standardHead        Lead  Limited   On trade cards in your org, beside the band estimates.
+metric:finance.trade.standardHead        Mgr   Hidden    Managers see heads and standard heads, never amounts.
+metric:audit.entries.count               Mgr   Hidden    None of the views it is on is shown in Manager mode.
+metric:data.coverage.byMonth             HRBP  Hidden    The Data room is HR admin's.
+metric:data.coverage.byMonth             Lead  Hidden    The Data room is HR admin's.
+metric:data.coverage.byMonth             Fin   Hidden    The Data room is HR admin's.
+metric:data.coverage.byMonth             Mgr   Hidden    The Data room is HR admin's.
+metric:data.quality.metricTiers          HRBP  Hidden    The Data room is HR admin's.
+metric:data.quality.metricTiers          Lead  Hidden    The Data room is HR admin's.
+metric:data.quality.metricTiers          Fin   Hidden    The Data room is HR admin's.
+metric:data.quality.metricTiers          Mgr   Hidden    The Data room is HR admin's.
+metric:cost.guard.floorUsd               Mgr   Hidden    Manager mode shows no amounts.
+pay:switch                               HRBP  Hidden    HRBP mode shows totals rounded to $0.1M.
+pay:switch                               Lead  Hidden    Leader mode shows totals rounded to $0.1M.
+pay:switch                               Fin   Hidden    Finance mode shows totals, never one person's pay.
+pay:switch                               Mgr   Hidden    Manager mode shows no amounts.
+pay:amounts                              Adm   Limited   With Show pay amounts on.
+pay:amounts                              HRBP  Hidden    HRBP mode never shows one person's pay.
+pay:amounts                              Lead  Hidden    Leader mode never shows one person's pay.
+pay:amounts                              Fin   Hidden    Finance mode shows totals, never one person's pay.
+pay:amounts                              Mgr   Hidden    Manager mode shows no amounts.
+pay:exact                                HRBP  Hidden    HRBP mode rounds totals down to $0.1M per team.
+pay:exact                                Lead  Hidden    Leader mode rounds totals down to $0.1M per team.
+pay:exact                                Fin   Limited   Groups of 5 or more costed people.
+pay:exact                                Mgr   Hidden    Manager mode shows no amounts.
+pay:rounded                              Adm   Hidden    HR admin mode shows exact totals, never rounded ones.
+pay:rounded                              HRBP  Limited   Rounded down to $0.1M per team, at QTD, YTD and full year; groups under 5 left out.
+pay:rounded                              Lead  Limited   Rounded down to $0.1M per team, at QTD, YTD and full year; groups under 5 left out.
+pay:rounded                              Fin   Hidden    Finance mode shows exact totals over 5 or more costed people.
+pay:rounded                              Mgr   Hidden    Manager mode shows no amounts.
+cost:band                                Mgr   Hidden    Managers see heads and standard heads, never amounts.
+cost:monthly                             HRBP  Hidden    Monthly cost shows as heads in this mode.
+cost:monthly                             Lead  Hidden    Monthly cost shows as heads in this mode.
+cost:monthly                             Mgr   Hidden    Manager mode shows no amounts.
+cost:component                           HRBP  Hidden    This mode shows loaded cost at QTD, YTD and full year only.
+cost:component                           Lead  Hidden    This mode shows loaded cost at QTD, YTD and full year only.
+cost:component                           Mgr   Hidden    Manager mode shows no amounts.
+leave:counts                             HRBP  Limited   One count for your whole unit at the as-of date, when 5 or more.
+leave:counts                             Lead  Limited   One count for your whole org at the as-of date, when 5 or more.
+leave:counts                             Fin   Hidden    Leave is not shown in this mode.
+leave:counts                             Mgr   Hidden    Leave is not shown in this mode.
+leave:people                             Adm   Limited   With Show pay amounts on.
+leave:people                             HRBP  Hidden    Leave per person shows only in HR admin mode, with Show pay amounts on.
+leave:people                             Lead  Hidden    Leave per person shows only in HR admin mode, with Show pay amounts on.
+leave:people                             Fin   Hidden    Leave is not shown in this mode.
+leave:people                             Mgr   Hidden    Leave is not shown in this mode.
+export:records                           HRBP  Limited   The rows the panel lists.
+export:records                           Lead  Limited   The rows the panel lists.
+export:records                           Mgr   Limited   The rows the panel lists.
+export:data-room                         HRBP  Hidden    The Data room is HR admin's.
+export:data-room                         Lead  Hidden    The Data room is HR admin's.
+export:data-room                         Fin   Hidden    The Data room is HR admin's.
+export:data-room                         Mgr   Hidden    The Data room is HR admin's.
+export:formulas                          HRBP  Limited   The shown metrics only.
+export:formulas                          Lead  Limited   The shown metrics only.
+export:formulas                          Fin   Limited   The shown metrics only.
+export:formulas                          Mgr   Limited   The shown metrics only.
+settings:device-files                    HRBP  Hidden    Settings files carry team configuration, kept by HR admin.
+settings:device-files                    Lead  Hidden    Settings files carry team configuration, kept by HR admin.
+settings:device-files                    Fin   Hidden    Settings files carry team configuration, kept by HR admin.
+settings:device-files                    Mgr   Hidden    Settings files carry team configuration, kept by HR admin.
+masthead:wordmark                        HRBP  Limited   Goes to Unit plan.
+masthead:wordmark                        Lead  Limited   Goes to Rollup vs target.
+masthead:wordmark                        Fin   Limited   Goes to Plan vs actual.
+masthead:wordmark                        Mgr   Limited   Goes to My team.
+masthead:mode                            HRBP  Limited   Reads "HRBP:" and your unit.
+masthead:mode                            Lead  Limited   Reads "Leader:" and the name you act as.
+masthead:mode                            Mgr   Limited   Reads "Manager:" and the name you act as.
+masthead:pay-tags                        Adm   Limited   Shows while Show pay amounts is on.
+masthead:pay-tags                        HRBP  Hidden    This mode has no Show pay amounts switch.
+masthead:pay-tags                        Lead  Hidden    This mode has no Show pay amounts switch.
+masthead:pay-tags                        Fin   Hidden    This mode has no Show pay amounts switch.
+masthead:pay-tags                        Mgr   Hidden    This mode has no Show pay amounts switch.
+masthead:actions                         HRBP  Limited   Counts this mode's Needs attention items.
+masthead:actions                         Lead  Limited   Counts this mode's Needs attention items.
+masthead:actions                         Fin   Limited   Counts this mode's Needs attention items.
+masthead:actions                         Mgr   Limited   Counts this mode's Needs attention items.
+masthead:audit                           HRBP  Limited   Opens the entries this mode shows.
+masthead:audit                           Lead  Limited   Opens the entries this mode shows.
+masthead:audit                           Fin   Limited   Opens the entries this mode shows.
+masthead:audit                           Mgr   Hidden    The audit spans other teams. Changes to your requests show on the requests.
+masthead:data                            HRBP  Hidden    The Data room is HR admin's.
+masthead:data                            Lead  Hidden    The Data room is HR admin's.
+masthead:data                            Fin   Hidden    The Data room is HR admin's.
+masthead:data                            Mgr   Hidden    The Data room is HR admin's.
+masthead:workspace                       HRBP  Limited   Lists only the files this mode saves and opens.
+masthead:workspace                       Lead  Limited   Lists only the files this mode saves and opens.
+masthead:workspace                       Fin   Limited   Lists only the files this mode saves and opens.
+masthead:workspace                       Mgr   Limited   Lists only the files this mode saves and opens.
+masthead:settings                        HRBP  Limited   Lists only the sections shown in this mode.
+masthead:settings                        Lead  Limited   Lists only the sections shown in this mode.
+masthead:settings                        Fin   Limited   Lists only the sections shown in this mode.
+masthead:settings                        Mgr   Limited   Lists only the sections shown in this mode.
+masthead:help                            HRBP  Limited   Lists only the articles and tours shown in this mode.
+masthead:help                            Lead  Limited   Lists only the articles and tours shown in this mode.
+masthead:help                            Fin   Limited   Lists only the articles and tours shown in this mode.
+masthead:help                            Mgr   Limited   Lists only the articles and tours shown in this mode.
+filter:saved-views                       HRBP  Limited   Every view applies inside your unit; one whose page is hidden opens Unit plan.
+filter:saved-views                       Lead  Limited   Every view applies inside your org; one whose page is hidden opens Rollup vs target.
+filter:saved-views                       Fin   Limited   A view applies through Finance's filters; one whose page is hidden opens Plan vs actual.
+filter:saved-views                       Mgr   Limited   Every view applies inside your team; one whose page is hidden opens My team.
+filter:period                            HRBP  Limited   Cost shows for the quarter to date, year to date and full year in this mode.
+filter:period                            Lead  Limited   Cost shows for the quarter to date, year to date and full year in this mode.
+filter:leaderId                          HRBP  Limited   Leaders with positions in your unit.
+filter:leaderId                          Lead  Limited   Pinned inside your org, include only.
+filter:leaderId                          Fin   Hidden    Finance mode filters by unit, cost center, legal entity, country and currency.
+filter:leaderId                          Mgr   Limited   Pinned inside your team, include only; leaders inside it can be picked.
+filter:businessUnit                      HRBP  Limited   Pinned to your business unit.
+filter:businessUnit                      Fin   Limited   Include only. Cost shows for whole business units. Cost centers, countries, legal entities and currencies are rows of each unit's breakdown.
+filter:businessUnit                      Mgr   Hidden    Manager mode filters by leader, level and location.
+filter:department                        HRBP  Limited   Departments of your unit only.
+filter:department                        Fin   Hidden    Finance mode filters by unit, cost center, legal entity, country and currency.
+filter:department                        Mgr   Hidden    Manager mode filters by leader, level and location.
+filter:costCenter                        Fin   Limited   Include only. Cost shows for whole business units. Cost centers, countries, legal entities and currencies are rows of each unit's breakdown.
+filter:costCenter                        Mgr   Hidden    Manager mode filters by leader, level and location.
+filter:location                          Fin   Hidden    Finance mode filters by unit, cost center, legal entity, country and currency.
+filter:level                             Fin   Hidden    Finance mode filters by unit, cost center, legal entity, country and currency.
+filter:legalEntity                       Fin   Limited   Include only. Cost shows for whole business units. Cost centers, countries, legal entities and currencies are rows of each unit's breakdown.
+filter:legalEntity                       Mgr   Hidden    Manager mode filters by leader, level and location.
+filter:country                           Fin   Limited   Include only. Cost shows for whole business units. Cost centers, countries, legal entities and currencies are rows of each unit's breakdown.
+filter:country                           Mgr   Hidden    Manager mode filters by leader, level and location.
+filter:currency                          Fin   Limited   Include only. Cost shows for whole business units. Cost centers, countries, legal entities and currencies are rows of each unit's breakdown.
+filter:currency                          Mgr   Hidden    Manager mode filters by leader, level and location.
+filter:exclude                           Fin   Hidden    Finance mode's filters include only.
+filter:exclude                           Mgr   Limited   Level and location include or exclude; the leader filter includes only.
+filter:chain                             Lead  Limited   Starts at your own seat; nobody above.
+filter:chain                             Fin   Hidden    Finance mode does not filter by leader.
+filter:chain                             Mgr   Limited   Starts at your own seat; nobody above.
+filter:in-scope                          HRBP  Limited   Counts positions in your unit.
+filter:in-scope                          Lead  Limited   Counts positions in your org.
+filter:in-scope                          Mgr   Limited   Counts positions in your team.
+filter:standard                          Fin   Limited   Read only: the saved data standard.
+filter:standard                          Mgr   Limited   Read only: the saved data standard.
+filter:reset                             HRBP  Limited   Returns to your whole unit and the default period.
+filter:reset                             Lead  Limited   Returns to your whole org and the default period.
+filter:reset                             Mgr   Limited   Returns to your whole team and the default period.
+header:home                              Adm   Hidden    Its view is not shown in HR admin mode.
+header:home                              Mgr   Hidden    Its view is not shown in Manager mode.
+header:team                              Adm   Hidden    Its view is not shown in HR admin mode.
+header:team                              HRBP  Hidden    Its view is not shown in HRBP mode.
+header:team                              Lead  Hidden    Its view is not shown in Leader mode.
+header:team                              Fin   Hidden    Its view is not shown in Finance mode.
+header:forecast                          Mgr   Hidden    Its view is not shown in Manager mode.
+header:targets                           Mgr   Hidden    Its view is not shown in Manager mode.
+header:whatif                            Mgr   Hidden    Its view is not shown in Manager mode.
+header:finance                           Lead  Hidden    Its view is not shown in Leader mode.
+header:finance                           Mgr   Hidden    Its view is not shown in Manager mode.
+header:scope                             HRBP  Limited   The scope line names your business unit.
+header:scope                             Lead  Limited   The scope line names your org.
+header:scope                             Mgr   Limited   The scope line names your team.
+header:about                             HRBP  Limited   Follows the view's article.
+header:about                             Lead  Limited   Follows the view's article.
+header:about                             Fin   Limited   Follows the view's article.
+header:about                             Mgr   Limited   Follows the view's article.
+focus:filter-to                          HRBP  Limited   Offered only when the result stays inside your business unit.
+focus:filter-to                          Lead  Limited   Offered only when the result stays inside your org.
+focus:filter-to                          Fin   Limited   Offered for unit, cost center, legal entity, country and currency.
+focus:filter-to                          Mgr   Limited   Offered only when the result stays inside your team.
+focus:leave-out                          HRBP  Limited   Offered only when the result stays inside your business unit.
+focus:leave-out                          Lead  Limited   Offered only when the result stays inside your org.
+focus:leave-out                          Fin   Hidden    Finance mode's filters include only.
+focus:leave-out                          Mgr   Limited   Offered only when the result stays inside your team.
+focus:leave-out-leader                   HRBP  Limited   Offered only when the result stays inside your business unit.
+focus:leave-out-leader                   Lead  Limited   Offered only when the result stays inside your org.
+focus:leave-out-leader                   Fin   Hidden    Finance mode does not filter by leader.
+focus:leave-out-leader                   Mgr   Hidden    Leaving out a leader would leave your team.
+focus:finding                            HRBP  Limited   Offered only when the result stays inside your business unit.
+focus:finding                            Lead  Limited   Offered only when the result stays inside your org.
+focus:finding                            Fin   Limited   Offered for unit, cost center, legal entity, country and currency.
+focus:finding                            Mgr   Limited   Offered only when the result stays inside your team.
+shortcut:tabs                            HRBP  Limited   Arrows move over the shown tabs only.
+shortcut:tabs                            Lead  Limited   Arrows move over the shown tabs only.
+shortcut:tabs                            Fin   Limited   Arrows move over the shown tabs only.
+shortcut:tabs                            Mgr   Limited   Arrows move over the shown tabs only.
+ui:tier-badge                            HRBP  Limited   Glyph, word and hover explanation; not a button.
+ui:tier-badge                            Lead  Limited   Glyph, word and hover explanation; not a button.
+ui:tier-badge                            Fin   Limited   Glyph, word and hover explanation; not a button.
+ui:tier-badge                            Mgr   Limited   Glyph, word and hover explanation; not a button.
+ui:edit-definition                       HRBP  Hidden    The metric dictionary is in the Data room.
+ui:edit-definition                       Lead  Hidden    The metric dictionary is in the Data room.
+ui:edit-definition                       Fin   Hidden    The metric dictionary is in the Data room.
+ui:edit-definition                       Mgr   Hidden    The metric dictionary is in the Data room.
+ui:route-link                            HRBP  Limited   A link to a page this mode hides reads as plain text.
+ui:route-link                            Lead  Limited   A link to a page this mode hides reads as plain text.
+ui:route-link                            Fin   Limited   A link to a page this mode hides reads as plain text.
+ui:route-link                            Mgr   Limited   A link to a page this mode hides reads as plain text.
+ui:attention-lists                       Adm   Hidden    HR admin lists every open item; the two lists are for the role modes.
+ui:kpi-delta-company                     HRBP  Hidden    A company comparison opens no records: the company's records are not listed.
+ui:kpi-delta-company                     Lead  Hidden    A company comparison opens no records: the company's records are not listed.
+ui:kpi-delta-company                     Mgr   Hidden    A company comparison opens no records: the company's records are not listed.
+column:planLines.usdBase                 Adm   Limited   With Show pay amounts on.
+column:planLines.usdBase                 HRBP  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.usdBase                 Lead  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.usdBase                 Fin   Hidden    Finance mode shows totals, never one person's pay.
+column:planLines.usdBase                 Mgr   Hidden    Manager mode shows no amounts.
+column:planLines.usdBonus                Adm   Limited   With Show pay amounts on.
+column:planLines.usdBonus                HRBP  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.usdBonus                Lead  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.usdBonus                Fin   Hidden    Finance mode shows totals, never one person's pay.
+column:planLines.usdBonus                Mgr   Hidden    Manager mode shows no amounts.
+column:planLines.usdBurden               Adm   Limited   With Show pay amounts on.
+column:planLines.usdBurden               HRBP  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.usdBurden               Lead  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.usdBurden               Fin   Hidden    Finance mode shows totals, never one person's pay.
+column:planLines.usdBurden               Mgr   Hidden    Manager mode shows no amounts.
+column:planLines.usdBenefits             Adm   Limited   With Show pay amounts on.
+column:planLines.usdBenefits             HRBP  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.usdBenefits             Lead  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.usdBenefits             Fin   Hidden    Finance mode shows totals, never one person's pay.
+column:planLines.usdBenefits             Mgr   Hidden    Manager mode shows no amounts.
+column:planLines.usdOneTime              Adm   Limited   With Show pay amounts on.
+column:planLines.usdOneTime              HRBP  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.usdOneTime              Lead  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.usdOneTime              Fin   Hidden    Finance mode shows totals, never one person's pay.
+column:planLines.usdOneTime              Mgr   Hidden    Manager mode shows no amounts.
+column:planLines.usdVacancy              Adm   Limited   With Show pay amounts on.
+column:planLines.usdVacancy              HRBP  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.usdVacancy              Lead  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.usdVacancy              Fin   Hidden    Finance mode shows totals, never one person's pay.
+column:planLines.usdVacancy              Mgr   Hidden    Manager mode shows no amounts.
+column:planLines.usdEquity               Adm   Limited   With Show pay amounts on.
+column:planLines.usdEquity               HRBP  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.usdEquity               Lead  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.usdEquity               Fin   Hidden    Finance mode shows totals, never one person's pay.
+column:planLines.usdEquity               Mgr   Hidden    Manager mode shows no amounts.
+column:planLines.usdLoaded               Adm   Limited   With Show pay amounts on.
+column:planLines.usdLoaded               HRBP  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.usdLoaded               Lead  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.usdLoaded               Fin   Hidden    Finance mode shows totals, never one person's pay.
+column:planLines.usdLoaded               Mgr   Hidden    Manager mode shows no amounts.
+column:planLines.localBase               Adm   Limited   With Show pay amounts on.
+column:planLines.localBase               HRBP  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.localBase               Lead  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.localBase               Fin   Hidden    Finance mode shows totals, never one person's pay.
+column:planLines.localBase               Mgr   Hidden    Manager mode shows no amounts.
+column:planLines.localBonus              Adm   Limited   With Show pay amounts on.
+column:planLines.localBonus              HRBP  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.localBonus              Lead  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.localBonus              Fin   Hidden    Finance mode shows totals, never one person's pay.
+column:planLines.localBonus              Mgr   Hidden    Manager mode shows no amounts.
+column:planLines.localBurden             Adm   Limited   With Show pay amounts on.
+column:planLines.localBurden             HRBP  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.localBurden             Lead  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.localBurden             Fin   Hidden    Finance mode shows totals, never one person's pay.
+column:planLines.localBurden             Mgr   Hidden    Manager mode shows no amounts.
+column:planLines.localBenefits           Adm   Limited   With Show pay amounts on.
+column:planLines.localBenefits           HRBP  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.localBenefits           Lead  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.localBenefits           Fin   Hidden    Finance mode shows totals, never one person's pay.
+column:planLines.localBenefits           Mgr   Hidden    Manager mode shows no amounts.
+column:planLines.localOneTime            Adm   Limited   With Show pay amounts on.
+column:planLines.localOneTime            HRBP  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.localOneTime            Lead  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.localOneTime            Fin   Hidden    Finance mode shows totals, never one person's pay.
+column:planLines.localOneTime            Mgr   Hidden    Manager mode shows no amounts.
+column:planLines.localVacancy            Adm   Limited   With Show pay amounts on.
+column:planLines.localVacancy            HRBP  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.localVacancy            Lead  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:planLines.localVacancy            Fin   Hidden    Finance mode shows totals, never one person's pay.
+column:planLines.localVacancy            Mgr   Hidden    Manager mode shows no amounts.
+column:reqs.offerBase                    Adm   Limited   With Show pay amounts on.
+column:reqs.offerBase                    HRBP  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:reqs.offerBase                    Lead  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:reqs.offerBase                    Fin   Hidden    Finance mode shows totals, never one person's pay.
+column:reqs.offerBase                    Mgr   Hidden    Manager mode shows no amounts.
+column:reqs.signOnBonus                  Adm   Limited   With Show pay amounts on.
+column:reqs.signOnBonus                  HRBP  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:reqs.signOnBonus                  Lead  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:reqs.signOnBonus                  Fin   Hidden    Finance mode shows totals, never one person's pay.
+column:reqs.signOnBonus                  Mgr   Hidden    Manager mode shows no amounts.
+column:reqs.relocation                   Adm   Limited   With Show pay amounts on.
+column:reqs.relocation                   HRBP  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:reqs.relocation                   Lead  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:reqs.relocation                   Fin   Hidden    Finance mode shows totals, never one person's pay.
+column:reqs.relocation                   Mgr   Hidden    Manager mode shows no amounts.
+column:reqs.agencyFee                    Adm   Limited   With Show pay amounts on.
+column:reqs.agencyFee                    HRBP  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:reqs.agencyFee                    Lead  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:reqs.agencyFee                    Fin   Hidden    Finance mode shows totals, never one person's pay.
+column:reqs.agencyFee                    Mgr   Hidden    Manager mode shows no amounts.
+column:positions.costAnnual              Adm   Limited   With Show pay amounts on.
+column:positions.costAnnual              HRBP  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:positions.costAnnual              Lead  Hidden    One person's amounts show only in HR admin mode, with Show pay amounts on.
+column:positions.costAnnual              Fin   Hidden    Finance mode shows totals, never one person's pay.
+column:positions.costAnnual              Mgr   Hidden    Manager mode shows no amounts.
+column:positions.bandEstimate            Mgr   Hidden    Managers see heads and standard heads, never amounts.
+column:costGroups.base                   HRBP  Hidden    This mode shows loaded cost at QTD, YTD and full year only.
+column:costGroups.base                   Lead  Hidden    This mode shows loaded cost at QTD, YTD and full year only.
+column:costGroups.base                   Mgr   Hidden    These records are not shown in Manager mode.
+column:costGroups.bonus                  HRBP  Hidden    This mode shows loaded cost at QTD, YTD and full year only.
+column:costGroups.bonus                  Lead  Hidden    This mode shows loaded cost at QTD, YTD and full year only.
+column:costGroups.bonus                  Mgr   Hidden    These records are not shown in Manager mode.
+column:costGroups.burden                 HRBP  Hidden    This mode shows loaded cost at QTD, YTD and full year only.
+column:costGroups.burden                 Lead  Hidden    This mode shows loaded cost at QTD, YTD and full year only.
+column:costGroups.burden                 Mgr   Hidden    These records are not shown in Manager mode.
+column:costGroups.benefits               HRBP  Hidden    This mode shows loaded cost at QTD, YTD and full year only.
+column:costGroups.benefits               Lead  Hidden    This mode shows loaded cost at QTD, YTD and full year only.
+column:costGroups.benefits               Mgr   Hidden    These records are not shown in Manager mode.
+column:costGroups.oneTime                HRBP  Hidden    This mode shows loaded cost at QTD, YTD and full year only.
+column:costGroups.oneTime                Lead  Hidden    This mode shows loaded cost at QTD, YTD and full year only.
+column:costGroups.oneTime                Mgr   Hidden    These records are not shown in Manager mode.
+column:costGroups.loadedInclSbc          HRBP  Hidden    This mode shows loaded cost at QTD, YTD and full year only.
+column:costGroups.loadedInclSbc          Lead  Hidden    This mode shows loaded cost at QTD, YTD and full year only.
+column:costGroups.loadedInclSbc          Mgr   Hidden    These records are not shown in Manager mode.
+column:workers.onLeave                   Adm   Limited   With Show pay amounts on.
+column:workers.onLeave                   HRBP  Hidden    Leave per person shows only in HR admin mode, with Show pay amounts on.
+column:workers.onLeave                   Lead  Hidden    Leave per person shows only in HR admin mode, with Show pay amounts on.
+column:workers.onLeave                   Fin   Hidden    Leave is not shown in this mode.
+column:workers.onLeave                   Mgr   Hidden    These records are not shown in Manager mode.
+column:workers.leavePaid                 Adm   Limited   With Show pay amounts on.
+column:workers.leavePaid                 HRBP  Hidden    Leave per person shows only in HR admin mode, with Show pay amounts on.
+column:workers.leavePaid                 Lead  Hidden    Leave per person shows only in HR admin mode, with Show pay amounts on.
+column:workers.leavePaid                 Fin   Hidden    Leave is not shown in this mode.
+column:workers.leavePaid                 Mgr   Hidden    These records are not shown in Manager mode.
+item:requests:sent-back:                 Fin   Hidden    Items owned by one manager are left out of Finance mode.
+item:requests:not-submitted:             Fin   Hidden    Items owned by one manager are left out of Finance mode.
+item:requests:backfill-new-position:     Mgr   Hidden    Backfill flags are for HRBPs and Finance.
+item:requests:backfill-no-exit:          Mgr   Hidden    Backfill flags are for HRBPs and Finance.
+item:plan:planned-no-req:                Fin   Hidden    Items owned by one manager are left out of Finance mode.
+item:plan:past-start:                    Fin   Hidden    Items owned by one manager are left out of Finance mode.
+item:plan:frozen-opening:                Mgr   Hidden    Openings under a freeze are for HRBPs and Finance.
+item:plan:req-on-eliminated:             Fin   Hidden    Items owned by one manager are left out of Finance mode.
+item:requests:trade-credit-lapse:        Fin   Hidden    Items owned by one manager are left out of Finance mode.
+action:request.draft                     Lead  Limited   Inside your team or org.
+action:request.draft                     Fin   Hidden    Finance does not raise requests.
+action:request.draft                     Mgr   Limited   Inside your team or org.
+action:request.submit                    Lead  Limited   Inside your team or org.
+action:request.submit                    Fin   Hidden    Finance does not raise requests.
+action:request.submit                    Mgr   Limited   Inside your team or org.
+action:request.withdraw                  Lead  Limited   Inside your team or org.
+action:request.withdraw                  Fin   Hidden    Finance does not raise requests.
+action:request.withdraw                  Mgr   Limited   Inside your team or org.
+action:request.submit-on-behalf          Lead  Hidden    Submitting on behalf of a manager is the HRBP's.
+action:request.submit-on-behalf          Fin   Hidden    Submitting on behalf of a manager is the HRBP's.
+action:request.submit-on-behalf          Mgr   Hidden    Submitting on behalf of a manager is the HRBP's.
+action:request.recruit                   Lead  Limited   Inside your team or org.
+action:request.recruit                   Fin   Hidden    Finance does not raise requests.
+action:request.recruit                   Mgr   Limited   Inside your team or org.
+action:request.propose-start             Lead  Limited   Inside your team or org.
+action:request.propose-start             Fin   Hidden    Finance does not raise requests.
+action:request.propose-start             Mgr   Limited   Inside your team or org.
+action:request.trade                     Lead  Limited   Inside your team or org.
+action:request.trade                     Fin   Hidden    Finance approves trades; it does not start them.
+action:request.trade                     Mgr   Limited   Inside your team or org.
+action:request.approve                   HRBP  Limited   Only on steps assigned to you.
+action:request.approve                   Lead  Limited   Only on steps assigned to you.
+action:request.approve                   Fin   Limited   Only on steps assigned to you.
+action:request.approve                   Mgr   Limited   Only on steps assigned to you. In heads, without band cost.
+action:request.reject                    HRBP  Limited   Only on steps assigned to you.
+action:request.reject                    Lead  Limited   Only on steps assigned to you.
+action:request.reject                    Fin   Limited   Only on steps assigned to you.
+action:request.reject                    Mgr   Limited   Only on steps assigned to you. In heads, without band cost.
+action:request.send-back                 HRBP  Limited   Only on steps assigned to you.
+action:request.send-back                 Lead  Limited   Only on steps assigned to you.
+action:request.send-back                 Fin   Limited   Only on steps assigned to you.
+action:request.send-back                 Mgr   Limited   Only on steps assigned to you. In heads, without band cost.
+action:request.approve-with-changes      Lead  Hidden    Changes to a request are the HRBP's; leaders adjust the cycle within the envelope.
+action:request.approve-with-changes      Fin   Hidden    Finance locks or returns.
+action:request.approve-with-changes      Mgr   Hidden    Changes to level, start or location are the HRBP's.
+action:request.read-approvers-only       HRBP  Limited   Only on requests where you are the HRBP or on the approval chain.
+action:request.read-approvers-only       Lead  Limited   Only on requests where you are the HRBP or on the approval chain.
+action:request.read-approvers-only       Fin   Limited   Only on requests where you are the HRBP or on the approval chain.
+action:request.read-approvers-only       Mgr   Hidden    Approvers-only comments do not reach Manager mode.
+action:request.import                    Lead  Limited   Requests that touch your org or wait on you. Others in the file are left as they are.
+action:request.import                    Mgr   Hidden    Import requests is for HRBPs and above.
+action:position.edit                     HRBP  Limited   Open and Planned seats in your unit, in Working. A seat with an accepted offer cannot be edited; its start date and terms come from the recruiting system.
+action:position.edit                     Lead  Hidden    Seat changes go through requests or the HRBP.
+action:position.edit                     Fin   Hidden    Seat changes go through requests or the HRBP.
+action:position.edit                     Mgr   Hidden    Seat changes go through requests or the HRBP.
+action:transfer.process                  Lead  Hidden    Transfers are processed by HRBPs.
+action:transfer.process                  Fin   Hidden    Transfers are processed by HRBPs.
+action:transfer.process                  Mgr   Hidden    Transfers are processed by HRBPs.
+action:transfer.approve                  HRBP  Limited   Only on steps assigned to you. Both HRBPs approve.
+action:transfer.approve                  Lead  Limited   Only on steps assigned to you. Both leaders approve across units.
+action:transfer.approve                  Fin   Limited   Only on steps assigned to you. Only a move past a sub-org's cost envelope; position ID, title, level and org show, never the name.
+action:transfer.approve                  Mgr   Limited   Only on steps assigned to you. The manager step; names show, amounts do not.
+action:transfer.move-budget              Lead  Hidden    Move budget too? is set when the HRBP processes the transfer.
+action:transfer.move-budget              Fin   Hidden    Finance sees the target change in Targets.
+action:transfer.move-budget              Mgr   Hidden    Moving budget with a transfer is the HRBP's.
+action:target.set                        HRBP  Hidden    Targets are set by Finance.
+action:target.set                        Lead  Hidden    Targets are set by Finance.
+action:target.set                        Mgr   Hidden    Targets are set by Finance.
+action:target.exception                  HRBP  Hidden    Targets are set by Finance.
+action:target.exception                  Lead  Hidden    Targets are set by Finance.
+action:target.exception                  Mgr   Hidden    Targets are set by Finance.
+action:target.split                      HRBP  Hidden    Targets are set by Finance and split by leaders.
+action:target.split                      Lead  Limited   Inside your envelope; a move past a sub-org's envelope needs Finance.
+action:target.split                      Mgr   Hidden    Targets are set by Finance and split by leaders.
+action:target.move                       HRBP  Hidden    Targets are set by Finance and split by leaders.
+action:target.move                       Lead  Limited   Inside your envelope; a move past a sub-org's envelope needs Finance.
+action:target.move                       Mgr   Hidden    Targets are set by Finance and split by leaders.
+action:whatif.use                        Mgr   Hidden    What if shows cost.
+action:whatif.turn-into-requests         Fin   Hidden    Finance does not raise requests. Copy the scenario for the HRBP.
+action:whatif.turn-into-requests         Mgr   Hidden    What if shows cost.
+action:cycle.open                        HRBP  Hidden    Planning cycles are run by Finance.
+action:cycle.open                        Lead  Hidden    Planning cycles are run by Finance.
+action:cycle.open                        Mgr   Hidden    Planning cycles are run by Finance.
+action:cycle.dates                       HRBP  Hidden    Planning cycles are run by Finance.
+action:cycle.dates                       Lead  Hidden    Planning cycles are run by Finance.
+action:cycle.dates                       Mgr   Hidden    Planning cycles are run by Finance.
+action:cycle.lock                        HRBP  Hidden    Planning cycles are run by Finance.
+action:cycle.lock                        Lead  Hidden    Planning cycles are run by Finance.
+action:cycle.lock                        Mgr   Hidden    Planning cycles are run by Finance.
+action:cycle.return                      HRBP  Hidden    Planning cycles are run by Finance.
+action:cycle.return                      Lead  Hidden    Planning cycles are run by Finance.
+action:cycle.return                      Mgr   Hidden    Planning cycles are run by Finance.
+action:cycle.advance                     HRBP  Limited   Finish HRBP review for your unit.
+action:cycle.advance                     Lead  Limited   Finish Leader review for your org.
+action:cycle.advance                     Mgr   Hidden    Managers send ranked asks; the review stages are for HRBPs, leaders and Finance.
+action:cycle.rank                        Lead  Limited   Within the envelope.
+action:cycle.rank                        Fin   Hidden    Finance locks or returns the cycle; managers, HRBPs and leaders rank the asks.
+action:cycle.rank                        Mgr   Limited   Your own asks.
+action:cycle.cut-line                    Lead  Limited   Within the envelope.
+action:cycle.cut-line                    Mgr   Hidden    The cut line is set by HRBPs, leaders and Finance.
+action:cycle.copy-note                   Mgr   Hidden    Copy note is for the people who run the cycle: HRBPs, leaders and Finance.
+action:version.create                    HRBP  Hidden    Versions, closes, FX and freezes are Finance's.
+action:version.create                    Lead  Hidden    Versions, closes, FX and freezes are Finance's.
+action:version.create                    Mgr   Hidden    Versions, closes, FX and freezes are Finance's.
+action:version.lock                      HRBP  Hidden    Versions, closes, FX and freezes are Finance's.
+action:version.lock                      Lead  Hidden    Versions, closes, FX and freezes are Finance's.
+action:version.lock                      Mgr   Hidden    Versions, closes, FX and freezes are Finance's.
+action:version.reopen                    HRBP  Hidden    Versions, closes, FX and freezes are Finance's.
+action:version.reopen                    Lead  Hidden    Versions, closes, FX and freezes are Finance's.
+action:version.reopen                    Mgr   Hidden    Versions, closes, FX and freezes are Finance's.
+action:close.month                       HRBP  Hidden    Versions, closes, FX and freezes are Finance's.
+action:close.month                       Lead  Hidden    Versions, closes, FX and freezes are Finance's.
+action:close.month                       Mgr   Hidden    Versions, closes, FX and freezes are Finance's.
+action:fx.set                            HRBP  Hidden    Versions, closes, FX and freezes are Finance's.
+action:fx.set                            Lead  Hidden    Versions, closes, FX and freezes are Finance's.
+action:fx.set                            Mgr   Hidden    Versions, closes, FX and freezes are Finance's.
+action:freeze.create                     HRBP  Hidden    Versions, closes, FX and freezes are Finance's.
+action:freeze.create                     Lead  Hidden    Versions, closes, FX and freezes are Finance's.
+action:freeze.create                     Mgr   Hidden    Versions, closes, FX and freezes are Finance's.
+action:freeze.edit                       HRBP  Hidden    Versions, closes, FX and freezes are Finance's.
+action:freeze.edit                       Lead  Hidden    Versions, closes, FX and freezes are Finance's.
+action:freeze.edit                       Mgr   Hidden    Versions, closes, FX and freezes are Finance's.
+action:assumptions.edit                  HRBP  Hidden    Assumptions are Finance's.
+action:assumptions.edit                  Lead  Hidden    Assumptions are Finance's.
+action:assumptions.edit                  Fin   Limited   Rates and drivers, when the change moves 5 or more costed people. Caps, dates and pay percentages come from import.
+action:assumptions.edit                  Mgr   Hidden    Assumptions are Finance's.
+action:assumptions.edit-operational      HRBP  Limited   Your unit's time to fill, fill rate and backfill settings, in Working.
+action:assumptions.edit-operational      Lead  Hidden    Time to fill, fill rate and backfill settings are the HRBP's and Finance's.
+action:assumptions.edit-operational      Mgr   Hidden    Time to fill, fill rate and backfill settings are the HRBP's and Finance's.
+action:freeze.exception                  Lead  Limited   Submitted with a business reason; it adds a Finance step.
+action:freeze.exception                  Fin   Hidden    Finance approves freeze exceptions; it does not raise them.
+action:freeze.exception                  Mgr   Limited   Submitted with a business reason; it adds a Finance step.
+action:recon.review                      HRBP  Limited   Your unit.
+action:recon.review                      Lead  Hidden    Reconciliation is for HRBPs and Finance.
+action:recon.review                      Mgr   Hidden    Reconciliation is for HRBPs and Finance.
+action:data.import                       HRBP  Hidden    Imports are HR admin's.
+action:data.import                       Lead  Hidden    Imports are HR admin's.
+action:data.import                       Fin   Hidden    Imports are HR admin's.
+action:data.import                       Mgr   Hidden    Imports are HR admin's.
+action:workspace.import                  HRBP  Hidden    Imports are HR admin's.
+action:workspace.import                  Lead  Hidden    Imports are HR admin's.
+action:workspace.import                  Fin   Hidden    Imports are HR admin's.
+action:workspace.import                  Mgr   Hidden    Imports are HR admin's.
+action:export.for-manager                Lead  Limited   Managers in your org.
+action:export.for-manager                Fin   Hidden    Finance's decisions reach managers through the HRBP.
+action:export.for-manager                Mgr   Hidden    Managers export their own Shareable file.
+action:export.full                       Adm   Limited   With Show pay amounts on.
+action:export.full                       HRBP  Hidden    The Full file and the unsuppressed load file come from HR admin mode with Show pay amounts on.
+action:export.full                       Lead  Hidden    The Full file and the unsuppressed load file come from HR admin mode with Show pay amounts on.
+action:export.full                       Fin   Hidden    The Full file and the unsuppressed load file come from HR admin mode with Show pay amounts on.
+action:export.full                       Mgr   Hidden    The Full file and the unsuppressed load file come from HR admin mode with Show pay amounts on.
+action:export.load-file-full             Adm   Limited   With Show pay amounts on.
+action:export.load-file-full             HRBP  Hidden    The Full file and the unsuppressed load file come from HR admin mode with Show pay amounts on.
+action:export.load-file-full             Lead  Hidden    The Full file and the unsuppressed load file come from HR admin mode with Show pay amounts on.
+action:export.load-file-full             Fin   Hidden    The Full file and the unsuppressed load file come from HR admin mode with Show pay amounts on.
+action:export.load-file-full             Mgr   Hidden    The Full file and the unsuppressed load file come from HR admin mode with Show pay amounts on.
+action:export.load-file                  HRBP  Hidden    Load files are Finance's and HR admin's.
+action:export.load-file                  Lead  Hidden    Load files are Finance's and HR admin's.
+action:export.load-file                  Fin   Limited   Groups under 5 suppressed.
+action:export.load-file                  Mgr   Hidden    Load files are Finance's and HR admin's.
+action:export.figure                     HRBP  Limited   Rounded loaded cost only, for whole teams, at QTD, YTD and full year.
+action:export.figure                     Lead  Limited   Rounded loaded cost only, for whole teams, at QTD, YTD and full year.
+action:export.figure                     Mgr   Limited   No amount columns.
+action:export.view                       HRBP  Limited   Rounded loaded cost only, for whole teams, at QTD, YTD and full year.
+action:export.view                       Lead  Limited   Rounded loaded cost only, for whole teams, at QTD, YTD and full year.
+action:export.view                       Mgr   Limited   No amount columns.
+action:export.deck                       HRBP  Limited   Rounded loaded cost only, for whole teams, at QTD, YTD and full year.
+action:export.deck                       Lead  Limited   Rounded loaded cost only, for whole teams, at QTD, YTD and full year.
+action:export.deck                       Mgr   Limited   No amount columns.
+action:export.long-csv                   HRBP  Limited   Cost rows are whole departments and teams at QTD, YTD and full year, loaded cost in USD; other rows carry heads and FTE.
+action:export.long-csv                   Lead  Limited   Cost rows are whole departments and teams at QTD, YTD and full year, loaded cost in USD; other rows carry heads and FTE.
+action:export.long-csv                   Mgr   Limited   Heads and FTE rows only, no amount columns.
+help:article:view-home                   Adm   Hidden    Its view is not shown in HR admin mode.
+help:article:view-home                   Mgr   Hidden    Its view is not shown in Manager mode.
+help:article:view-team                   Adm   Hidden    My team is the Manager mode home.
+help:article:view-team                   HRBP  Hidden    My team is the Manager mode home.
+help:article:view-team                   Lead  Hidden    My team is the Manager mode home.
+help:article:view-team                   Fin   Hidden    My team is the Manager mode home.
+help:article:view-forecast               Mgr   Hidden    Its view is not shown in Manager mode.
+help:article:view-targets                Mgr   Hidden    Its view is not shown in Manager mode.
+help:article:view-whatif                 Mgr   Hidden    Its view is not shown in Manager mode.
+help:article:view-finance                Lead  Hidden    Its view is not shown in Leader mode.
+help:article:view-finance                Mgr   Hidden    Its view is not shown in Manager mode.
+help:article:view-data                   HRBP  Hidden    The Data room is HR admin's.
+help:article:view-data                   Lead  Hidden    The Data room is HR admin's.
+help:article:view-data                   Fin   Hidden    The Data room is HR admin's.
+help:article:view-data                   Mgr   Hidden    The Data room is HR admin's.
+help:article:view-audit                  Mgr   Hidden    The Audit page is not shown in Manager mode.
+help:article:data-loading                HRBP  Hidden    Your data articles are about the Data room, which this mode hides.
+help:article:data-loading                Lead  Hidden    Your data articles are about the Data room, which this mode hides.
+help:article:data-loading                Fin   Hidden    Your data articles are about the Data room, which this mode hides.
+help:article:data-loading                Mgr   Hidden    Your data articles are about the Data room, which this mode hides.
+help:article:data-mapping                HRBP  Hidden    Your data articles are about the Data room, which this mode hides.
+help:article:data-mapping                Lead  Hidden    Your data articles are about the Data room, which this mode hides.
+help:article:data-mapping                Fin   Hidden    Your data articles are about the Data room, which this mode hides.
+help:article:data-mapping                Mgr   Hidden    Your data articles are about the Data room, which this mode hides.
+help:article:data-tiers                  HRBP  Hidden    Your data articles are about the Data room, which this mode hides.
+help:article:data-tiers                  Lead  Hidden    Your data articles are about the Data room, which this mode hides.
+help:article:data-tiers                  Fin   Hidden    Your data articles are about the Data room, which this mode hides.
+help:article:data-tiers                  Mgr   Hidden    Your data articles are about the Data room, which this mode hides.
+help:article:data-certify                HRBP  Hidden    Your data articles are about the Data room, which this mode hides.
+help:article:data-certify                Lead  Hidden    Your data articles are about the Data room, which this mode hides.
+help:article:data-certify                Fin   Hidden    Your data articles are about the Data room, which this mode hides.
+help:article:data-certify                Mgr   Hidden    Your data articles are about the Data room, which this mode hides.
+help:article:data-quality                HRBP  Hidden    Your data articles are about the Data room, which this mode hides.
+help:article:data-quality                Lead  Hidden    Your data articles are about the Data room, which this mode hides.
+help:article:data-quality                Fin   Hidden    Your data articles are about the Data room, which this mode hides.
+help:article:data-quality                Mgr   Hidden    Your data articles are about the Data room, which this mode hides.
+help:article:data-wrong                  HRBP  Hidden    Your data articles are about the Data room, which this mode hides.
+help:article:data-wrong                  Lead  Hidden    Your data articles are about the Data room, which this mode hides.
+help:article:data-wrong                  Fin   Hidden    Your data articles are about the Data room, which this mode hides.
+help:article:data-wrong                  Mgr   Hidden    Your data articles are about the Data room, which this mode hides.
+help:article:definitions-how             HRBP  Limited   Its Data room links read as text.
+help:article:definitions-how             Lead  Limited   Its Data room links read as text.
+help:article:definitions-how             Fin   Limited   Its Data room links read as text.
+help:article:definitions-how             Mgr   Limited   Its Data room links read as text.
+help:article:glossary                    HRBP  Limited   Metrics shown in this mode only.
+help:article:glossary                    Lead  Limited   Metrics shown in this mode only.
+help:article:glossary                    Fin   Limited   Metrics shown in this mode only.
+help:article:glossary                    Mgr   Limited   Metrics shown in this mode only.
+help:article:cost-definition             Mgr   Hidden    Manager mode shows no amounts, so the cost definition is left out.
+help:article:privacy-pay                 Mgr   Hidden    Manager mode shows no amounts, so the pay rules article is left out.
+help:article:privacy-leave               Fin   Hidden    Finance mode shows no leave, so the leave article is left out.
+help:article:privacy-leave               Mgr   Hidden    Manager mode shows no leave, so the leave article is left out.
+help:tour:getting-started                HRBP  Hidden    "Getting started with your home" takes its place.
+help:tour:getting-started                Lead  Hidden    "Getting started with your home" takes its place.
+help:tour:getting-started                Fin   Hidden    "Getting started with your home" takes its place.
+help:tour:getting-started                Mgr   Hidden    "Getting started with your home" takes its place.
+help:tour:home-start                     Adm   Hidden    HR admin opens on the Data room; "Getting started" walks through it.
+help:tour:requests-start                 Fin   Hidden    Finance sets targets and gives final approval. It does not raise requests.
+help:tour:own-data                       HRBP  Hidden    Its steps are in the Data room, which this mode hides.
+help:tour:own-data                       Lead  Hidden    Its steps are in the Data room, which this mode hides.
+help:tour:own-data                       Fin   Hidden    Its steps are in the Data room, which this mode hides.
+help:tour:own-data                       Mgr   Hidden    Its steps are in the Data room, which this mode hides.
+help:tour:view-home                      Adm   Hidden    Its view is not shown in HR admin mode.
+help:tour:view-home                      Mgr   Hidden    Its view is not shown in Manager mode.
+help:tour:view-team                      Adm   Hidden    My team is the Manager mode home.
+help:tour:view-team                      HRBP  Hidden    My team is the Manager mode home.
+help:tour:view-team                      Lead  Hidden    My team is the Manager mode home.
+help:tour:view-team                      Fin   Hidden    My team is the Manager mode home.
+help:tour:view-plan                      HRBP  Limited   Its steps follow what this mode shows of the page.
+help:tour:view-plan                      Lead  Limited   Its steps follow what this mode shows of the page.
+help:tour:view-plan                      Fin   Limited   Its steps follow what this mode shows of the page.
+help:tour:view-plan                      Mgr   Limited   Its steps follow what this mode shows of the page.
+help:tour:view-requests                  HRBP  Limited   Its steps follow what this mode shows of the page.
+help:tour:view-requests                  Lead  Limited   Its steps follow what this mode shows of the page.
+help:tour:view-requests                  Fin   Limited   Its steps follow what this mode shows of the page.
+help:tour:view-requests                  Mgr   Limited   Its steps follow what this mode shows of the page.
+help:tour:view-forecast                  HRBP  Limited   Its steps follow what this mode shows of the page.
+help:tour:view-forecast                  Lead  Limited   Its steps follow what this mode shows of the page.
+help:tour:view-forecast                  Mgr   Hidden    Its view is not shown in Manager mode.
+help:tour:view-targets                   HRBP  Limited   Its steps follow what this mode shows of the page.
+help:tour:view-targets                   Lead  Limited   Its steps follow what this mode shows of the page.
+help:tour:view-targets                   Mgr   Hidden    Its view is not shown in Manager mode.
+help:tour:view-whatif                    Fin   Limited   Its steps follow what this mode shows of the page.
+help:tour:view-whatif                    Mgr   Hidden    Its view is not shown in Manager mode.
+help:tour:view-finance                   HRBP  Limited   Its steps follow what this mode shows of the page.
+help:tour:view-finance                   Lead  Hidden    Its view is not shown in Leader mode.
+help:tour:view-finance                   Mgr   Hidden    Its view is not shown in Manager mode.
+figure:team-open-to-hire                 Adm   Hidden    Its view is not shown in HR admin mode.
+figure:team-open-to-hire                 HRBP  Hidden    Its view is not shown in HRBP mode.
+figure:team-open-to-hire                 Lead  Hidden    Its view is not shown in Leader mode.
+figure:team-open-to-hire                 Fin   Hidden    Its view is not shown in Finance mode.
+column:workers.hireDate                  Mgr   Hidden    These records are not shown in Manager mode.
+column:workers.terminationDate           Mgr   Hidden    These records are not shown in Manager mode.
+figure:plan-cost-by-unit                 Mgr   Hidden    On the Manager mode figure list.
+figure:plan-transfers-kpis               Fin   Hidden    On the Finance mode figure list.
+figure:plan-transfers-table              Fin   Hidden    On the Finance mode figure list.
+metric:plan.cost.*                       Mgr   Hidden    On the Manager mode metric list.
+metric:forecast.cost.*                   Mgr   Hidden    On the Manager mode metric list.
+metric:forecast.bridge.*                 Mgr   Hidden    On the Manager mode metric list.
+metric:forecast.fx.*                     Mgr   Hidden    On the Manager mode metric list.
+metric:whatif.*                          Mgr   Hidden    On the Manager mode metric list.
+metric:finance.*                         Mgr   Hidden    On the Manager mode metric list.
+metric:requests.chain.*                  Mgr   Hidden    On the Manager mode metric list.
+metric:plan.leave.*                      Fin   Hidden    On the Finance mode metric list.
+metric:plan.leave.*                      Mgr   Hidden    On the Manager mode metric list.
+metric:data.*                            HRBP  Hidden    On the HRBP mode metric list.
+metric:data.*                            Lead  Hidden    On the Leader mode metric list.
+metric:data.*                            Fin   Hidden    On the Finance mode metric list.
+metric:data.*                            Mgr   Hidden    On the Manager mode metric list.
+help:learn-more                          HRBP  Limited   Shown when its article is shown in this mode.
+help:learn-more                          Lead  Limited   Shown when its article is shown in this mode.
+help:learn-more                          Fin   Limited   Shown when its article is shown in this mode.
+help:learn-more                          Mgr   Limited   Shown when its article is shown in this mode.
+help:search                              HRBP  Limited   Covers the shown articles and the glossary of shown metrics.
+help:search                              Lead  Limited   Covers the shown articles and the glossary of shown metrics.
+help:search                              Fin   Limited   Covers the shown articles and the glossary of shown metrics.
+help:search                              Mgr   Limited   Covers the shown articles and the glossary of shown metrics.
+help:report                              HRBP  Limited   Adds the mode line, which names your unit.
+help:report                              Lead  Limited   Adds the mode line; the leader is left out.
+help:report                              Mgr   Limited   Adds "Mode: Manager (manager set, name left out)".
+help:links                               HRBP  Limited   Links to hidden targets read as plain text.
+help:links                               Lead  Limited   Links to hidden targets read as plain text.
+help:links                               Fin   Limited   Links to hidden targets read as plain text.
+help:links                               Mgr   Limited   Links to hidden targets read as plain text.

@@ -1,0 +1,248 @@
+/*
+ * Headcount Planner design tokens.
+ * Layout concept: the views (Home, Plan, Requests, Forecast, ...) are file-folder tabs that open
+ * onto a cool-gray desk; every figure is a white sheet laid on that desk. Archivo's width axis does
+ * the typographic work: normal width for reading, semi-condensed for headings, tabs and figures.
+ *
+ * Every color is defined here first (light), then redefined for dark under the OS preference
+ * (guarded so an explicit light choice wins) and again under [data-theme="dark"].
+ * Data colors follow the validated reference palette (dataviz skill), checked against --sheet.
+ */
+:root {
+  color-scheme: light;
+
+  /* type */
+  --font-sans: "Archivo Variable", "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:
+    "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --stretch-head: 84%;
+  --stretch-tab: 88%;
+
+  /* surfaces */
+  --page: #e8eaee;
+  --sheet: #fbfbfc;
+  --sheet-2: #f3f4f6;
+  --sheet-3: #e7e9ed;
+  /* masthead band: graphite in both themes; the open folder tab takes the page color */
+  --band: #1b1f26;
+  --band-ink: #f1f3f5;
+  --band-ink-2: #b9c0ca;
+  --band-muted: #989fab; /* 4.5:1 or more on the band, idle tabs (hovered too) and band chips */
+  --band-rule: #3a404a;
+  --band-chip: #2c313a;
+  --tab-idle: #262b33;
+  --tab-idle-hover: #30363f;
+  --overlay: rgba(18, 21, 26, 0.32);
+
+  /* ink */
+  --ink: #12151a;
+  --ink-2: #475060;
+  --muted: #616a78;
+  --on-ink: #fbfbfc;
+
+  /* lines */
+  --rule: #dde1e7;
+  --rule-strong: #c3c9d2;
+  --grid: #e6e8ec;
+  --axis: #b9c0ca;
+
+  /* interaction */
+  --focus: #1c5cab;
+  --link: #1c5cab;
+  --hover-wash: rgba(18, 21, 26, 0.05);
+  --press-wash: rgba(18, 21, 26, 0.09);
+
+  /* categorical series, fixed order (never cycled) */
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --s3: #1baf7a;
+  --s4: #eda100;
+  --s5: #e87ba4;
+  --s6: #008300;
+  --s7: #4a3aa7;
+  --s8: #e34948;
+  --deemph: #c5cad3;
+
+  /* sequential blue */
+  --seq-100: #cde2fb;
+  --seq-200: #9ec5f4;
+  --seq-250: #86b6ef;
+  --seq-300: #6da7ec;
+  --seq-400: #3987e5;
+  --seq-450: #2a78d6;
+  --seq-500: #256abf;
+  --seq-600: #184f95;
+  --seq-700: #0d366b;
+
+  /* diverging blue <-> red, gray midpoint */
+  --div-neg-3: #b5372f;
+  --div-neg-2: #e34948;
+  --div-neg-1: #f2a49c;
+  --div-mid: #f0efec;
+  --div-pos-1: #9ec5f4;
+  --div-pos-2: #3987e5;
+  --div-pos-3: #184f95;
+
+  /* status (fixed, never themed; always paired with an icon + label) */
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --good-text: #006300;
+  --bad-text: #b02a2a;
+  --good-wash: rgba(12, 163, 12, 0.1);
+  --warning-wash: rgba(250, 178, 25, 0.16);
+  --serious-wash: rgba(236, 131, 90, 0.14);
+  --critical-wash: rgba(208, 59, 59, 0.1);
+
+  /* data tiers (medal glyphs; always paired with the word). Glyph colors are >= 3:1 against
+     --sheet, --sheet-2 and --page in both themes (src/styles/tierTokens.test.ts). */
+  --tier-gold: #9c7400;
+  --tier-silver: #737f8f;
+  --tier-bronze: #a65a25;
+  --tier-gold-wash: rgba(156, 116, 0, 0.12);
+  --tier-silver-wash: rgba(115, 127, 143, 0.14);
+  --tier-bronze-wash: rgba(166, 90, 37, 0.12);
+
+  /* geometry */
+  --radius-sheet: 6px;
+  --radius-control: 4px;
+  /* tags, pills, badges, chips, menu items */
+  --radius-chip: 3px;
+  /* inline focus outlines on links and drill numbers, small swatches */
+  --radius-mark: 2px;
+  --gutter: clamp(16px, 2.4vw, 32px);
+
+  /* floating layers only (menus, popovers, dialogs); sheets never get a shadow */
+  --shadow-pop: 0 12px 32px -14px rgba(18, 21, 26, 0.38), 0 0 0 1px var(--rule-strong);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0a0c0f;
+    --sheet: #181c22;
+    --sheet-2: #1f242b;
+    --sheet-3: #272d35;
+    --band: #171a1f;
+    --band-chip: #262a31;
+    --band-rule: #2c3138;
+    --tab-idle: #1e2228;
+    --tab-idle-hover: #252a31;
+    --overlay: rgba(0, 0, 0, 0.55);
+    --ink: #f1f3f5;
+    --ink-2: #b6bdc8;
+    --muted: #8a919d;
+    --on-ink: #0a0c0f;
+    --rule: #2b3038;
+    --rule-strong: #3b414b;
+    --grid: #252a31;
+    --axis: #444b56;
+    --focus: #6da7ec;
+    --link: #86b6ef;
+    --hover-wash: rgba(255, 255, 255, 0.05);
+    --press-wash: rgba(255, 255, 255, 0.09);
+    --s1: #3987e5;
+    --s2: #d95926;
+    --s3: #199e70;
+    --s4: #c98500;
+    --s5: #d55181;
+    --s6: #008300;
+    --s7: #9085e9;
+    --s8: #e66767;
+    --deemph: #4a515c;
+    --seq-100: #0d366b;
+    --seq-200: #104281;
+    --seq-250: #184f95;
+    --seq-300: #1c5cab;
+    --seq-400: #256abf;
+    --seq-450: #2a78d6;
+    --seq-500: #3987e5;
+    --seq-600: #6da7ec;
+    --seq-700: #9ec5f4;
+    --div-neg-3: #f2a49c;
+    --div-neg-2: #e66767;
+    --div-neg-1: #8f3a35;
+    --div-mid: #383835;
+    --div-pos-1: #184f95;
+    --div-pos-2: #3987e5;
+    --div-pos-3: #9ec5f4;
+    --good-text: #3fc23f;
+    --bad-text: #f08a8a;
+    --good-wash: rgba(12, 163, 12, 0.16);
+    --warning-wash: rgba(250, 178, 25, 0.14);
+    --serious-wash: rgba(236, 131, 90, 0.16);
+    --critical-wash: rgba(208, 59, 59, 0.18);
+    --tier-gold: #d9aa3a;
+    --tier-silver: #a3adba;
+    --tier-bronze: #d08553;
+    --tier-gold-wash: rgba(217, 170, 58, 0.14);
+    --tier-silver-wash: rgba(163, 173, 186, 0.12);
+    --tier-bronze-wash: rgba(208, 133, 83, 0.15);
+    --shadow-pop: 0 14px 36px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px var(--rule-strong);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0a0c0f;
+  --sheet: #181c22;
+  --sheet-2: #1f242b;
+  --sheet-3: #272d35;
+  --band: #171a1f;
+  --band-chip: #262a31;
+  --band-rule: #2c3138;
+  --tab-idle: #1e2228;
+  --tab-idle-hover: #252a31;
+  --overlay: rgba(0, 0, 0, 0.55);
+  --ink: #f1f3f5;
+  --ink-2: #b6bdc8;
+  --muted: #8a919d;
+  --on-ink: #0a0c0f;
+  --rule: #2b3038;
+  --rule-strong: #3b414b;
+  --grid: #252a31;
+  --axis: #444b56;
+  --focus: #6da7ec;
+  --link: #86b6ef;
+  --hover-wash: rgba(255, 255, 255, 0.05);
+  --press-wash: rgba(255, 255, 255, 0.09);
+  --s1: #3987e5;
+  --s2: #d95926;
+  --s3: #199e70;
+  --s4: #c98500;
+  --s5: #d55181;
+  --s6: #008300;
+  --s7: #9085e9;
+  --s8: #e66767;
+  --deemph: #4a515c;
+  --seq-100: #0d366b;
+  --seq-200: #104281;
+  --seq-250: #184f95;
+  --seq-300: #1c5cab;
+  --seq-400: #256abf;
+  --seq-450: #2a78d6;
+  --seq-500: #3987e5;
+  --seq-600: #6da7ec;
+  --seq-700: #9ec5f4;
+  --div-neg-3: #f2a49c;
+  --div-neg-2: #e66767;
+  --div-neg-1: #8f3a35;
+  --div-mid: #383835;
+  --div-pos-1: #184f95;
+  --div-pos-2: #3987e5;
+  --div-pos-3: #9ec5f4;
+  --good-text: #3fc23f;
+  --bad-text: #f08a8a;
+  --good-wash: rgba(12, 163, 12, 0.16);
+  --warning-wash: rgba(250, 178, 25, 0.14);
+  --serious-wash: rgba(236, 131, 90, 0.16);
+  --critical-wash: rgba(208, 59, 59, 0.18);
+  --tier-gold: #d9aa3a;
+  --tier-silver: #a3adba;
+  --tier-bronze: #d08553;
+  --tier-gold-wash: rgba(217, 170, 58, 0.14);
+  --tier-silver-wash: rgba(163, 173, 186, 0.12);
+  --tier-bronze-wash: rgba(208, 133, 83, 0.15);
+  --shadow-pop: 0 14px 36px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px var(--rule-strong);
+}

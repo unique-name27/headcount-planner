@@ -1,0 +1,17 @@
+Kind                            Adm  HRBP   Lead   Fin    Mgr
+-------------------------------------------------------------
+requests:approve                -    N:apr  N:apr  N:apr  N:apr
+requests:waiting                -    N:any  N:apr  N:apr  N:apr W:req
+requests:sent-back              -    N:req  N:req  -      N:req
+requests:not-submitted          -    N:any  -      -      N:own
+requests:backfill-new-position  -    N:any  -      N:any  -
+requests:backfill-no-exit       -    N:any  -      N:any  -
+plan:planned-no-req             -    N:any  -      -      N:own
+plan:past-start                 -    W:any  -      -      -
+plan:frozen-opening             -    N:any  -      N:any  -
+plan:req-on-eliminated          -    N:any  -      -      W:any
+targets:suborg-over             -    W:any  N:own  -      -
+finance:reconcile               -    N:any  -      N:any  -
+finance:envelope-exception      -    -      -      N:any  -
+finance:cycle-due               -    -      -      N:any  -
+requests:trade-credit-lapse     -    W:any  -      -      N:own

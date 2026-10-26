@@ -1,0 +1,412 @@
+@import "tailwindcss";
+@import "./tokens.css";
+
+/* Latin subsets only, bundled with the app (no font requests leave the browser).
+   Archivo carries a width axis (62–125%), used for the semi-condensed display cut. */
+@font-face {
+  font-family: "Archivo Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  src: url("@fontsource-variable/archivo/files/archivo-latin-wdth-normal.woff2") format("woff2-variations");
+}
+@font-face {
+  font-family: "JetBrains Mono Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 800;
+  src: url("@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2")
+    format("woff2-variations");
+}
+
+/* Map design tokens into Tailwind utilities (bg-sheet, text-ink-2, border-rule, ...).
+   `inline` keeps the var() reference so light/dark swaps happen in tokens.css only. */
+@theme inline {
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --color-page: var(--page);
+  --color-sheet: var(--sheet);
+  --color-sheet-2: var(--sheet-2);
+  --color-sheet-3: var(--sheet-3);
+  --color-band: var(--band);
+  --color-tab-idle: var(--tab-idle);
+  --color-tab-idle-hover: var(--tab-idle-hover);
+  --color-overlay: var(--overlay);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-on-ink: var(--on-ink);
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+  --color-grid: var(--grid);
+  --color-axis: var(--axis);
+  --color-focus: var(--focus);
+  --color-link: var(--link);
+  --color-hover: var(--hover-wash);
+  --color-press: var(--press-wash);
+  --color-s1: var(--s1);
+  --color-s2: var(--s2);
+  --color-s3: var(--s3);
+  --color-s4: var(--s4);
+  --color-s5: var(--s5);
+  --color-s6: var(--s6);
+  --color-s7: var(--s7);
+  --color-s8: var(--s8);
+  --color-deemph: var(--deemph);
+  --color-good: var(--good);
+  --color-warning: var(--warning);
+  --color-serious: var(--serious);
+  --color-critical: var(--critical);
+  --color-good-text: var(--good-text);
+  --color-bad-text: var(--bad-text);
+  --color-good-wash: var(--good-wash);
+  --color-warning-wash: var(--warning-wash);
+  --color-serious-wash: var(--serious-wash);
+  --color-critical-wash: var(--critical-wash);
+  --color-tier-gold: var(--tier-gold);
+  --color-tier-silver: var(--tier-silver);
+  --color-tier-bronze: var(--tier-bronze);
+  --color-tier-gold-wash: var(--tier-gold-wash);
+  --color-tier-silver-wash: var(--tier-silver-wash);
+  --color-tier-bronze-wash: var(--tier-bronze-wash);
+
+  --radius-sheet: var(--radius-sheet);
+  --radius-control: var(--radius-control);
+  --radius-chip: var(--radius-chip);
+  --radius-mark: var(--radius-mark);
+}
+
+/* The type scale (ARCHITECTURE.md, "Design"). One class per job; src/styles/typeScale.test.ts
+   fails on any arbitrary text-[Npx] size. Each token sets its size and line height; an explicit
+   leading-* class still wins. Weight and cut are set beside it (font-semibold cut-head).
+     text-label    11 / 1.35  tier word, tags, pills, axis ticks, dense legends
+     text-meta     12 / 1.4   notes, deltas, scope extras, drill table cells, tooltips
+     text-small    13 / 1.45  subtitles, deks, table cells, buttons, finding detail
+     text-body     14 / 1.45  body text, readout headlines (600)
+     text-title    16 / 1.3   every sheet title (600, cut-head)
+     text-section  20 / 1.2   Section headings, side-sheet titles, wide folder-tab numbers
+     text-page-title 28 / 1.1 view title (h1), KPI values (650, cut-head)
+     text-display  40 / 1.05  position card headline number, Data room big counts
+     text-hero     48 / 1.0   one hero figure per role home page, nowhere else
+   The 28px step is text-page-title, not text-page: text-page is the page color as text. */
+@theme {
+  --text-label: 11px;
+  --text-label--line-height: 1.35;
+  --text-meta: 12px;
+  --text-meta--line-height: 1.4;
+  --text-small: 13px;
+  --text-small--line-height: 1.45;
+  --text-body: 14px;
+  --text-body--line-height: 1.45;
+  --text-title: 16px;
+  --text-title--line-height: 1.3;
+  --text-section: 20px;
+  --text-section--line-height: 1.2;
+  --text-page-title: 28px;
+  --text-page-title--line-height: 1.1;
+  --text-display: 40px;
+  --text-display--line-height: 1.05;
+  --text-hero: 48px;
+  --text-hero--line-height: 1;
+}
+
+/* Breakpoints follow the area an element lays out in (src/components/mainArea.ts, ported in
+   M2). The shell's main area carries `data-area` and is a size container named `shell`, so
+   inside it sm to xl and max-* read the container's width, which can be narrower than the window
+   when a side panel sits beside the page. Outside any area (sheets, menus, toasts) they read the window, as Tailwind's own do. Same
+   widths as Tailwind's defaults: sm 40rem, md 48rem, lg 64rem, xl 80rem. (2xl stays Tailwind's:
+   the stylesheet linter cannot read a name that starts with a digit.) */
+@custom-variant sm {
+  @media (width >= 40rem) {
+    &:where(:not([data-area] *)) {
+      @slot;
+    }
+  }
+  @container shell (width >= 40rem) {
+    @slot;
+  }
+}
+@custom-variant md {
+  @media (width >= 48rem) {
+    &:where(:not([data-area] *)) {
+      @slot;
+    }
+  }
+  @container shell (width >= 48rem) {
+    @slot;
+  }
+}
+@custom-variant lg {
+  @media (width >= 64rem) {
+    &:where(:not([data-area] *)) {
+      @slot;
+    }
+  }
+  @container shell (width >= 64rem) {
+    @slot;
+  }
+}
+@custom-variant xl {
+  @media (width >= 80rem) {
+    &:where(:not([data-area] *)) {
+      @slot;
+    }
+  }
+  @container shell (width >= 80rem) {
+    @slot;
+  }
+}
+@custom-variant max-sm {
+  @media (width < 40rem) {
+    &:where(:not([data-area] *)) {
+      @slot;
+    }
+  }
+  @container shell (width < 40rem) {
+    @slot;
+  }
+}
+@custom-variant max-md {
+  @media (width < 48rem) {
+    &:where(:not([data-area] *)) {
+      @slot;
+    }
+  }
+  @container shell (width < 48rem) {
+    @slot;
+  }
+}
+@custom-variant max-lg {
+  @media (width < 64rem) {
+    &:where(:not([data-area] *)) {
+      @slot;
+    }
+  }
+  @container shell (width < 64rem) {
+    @slot;
+  }
+}
+@custom-variant max-xl {
+  @media (width < 80rem) {
+    &:where(:not([data-area] *)) {
+      @slot;
+    }
+  }
+  @container shell (width < 80rem) {
+    @slot;
+  }
+}
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    text-wrap: balance;
+    font-stretch: var(--stretch-head);
+    letter-spacing: -0.005em;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--focus) 24%, transparent);
+  }
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: default;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+  /* Settings → Display → Motion: "Reduce motion" pins the same rule whatever the OS says. */
+  :root[data-motion="reduce"] *,
+  :root[data-motion="reduce"] *::before,
+  :root[data-motion="reduce"] *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* Settings → Display → Text size zooms the app root (src/app/useShell.ts). Menus, popovers,
+     tooltips and sheets render in portals outside it: their content takes the same zoom, while
+     the positioner or sheet frame stays unzoomed so placement and screen fit stay correct. */
+  :root[data-text-size]
+    [data-base-ui-portal]
+    > :is([role="presentation"][data-side], [role="dialog"], [role="alertdialog"])
+    > * {
+    zoom: var(--text-zoom, 1);
+  }
+}
+
+/* The masthead band is graphite in both themes. It re-points the ink, rule and surface tokens so
+   every control inside it (ghost, secondary and primary buttons, tags, focus rings) reads
+   light-on-graphite; the open folder tab (.on-desk) points them all back to the page values. */
+:root {
+  --desk-ink: var(--ink);
+  --desk-ink-2: var(--ink-2);
+  --desk-muted: var(--muted);
+  --desk-on-ink: var(--on-ink);
+  --desk-sheet: var(--sheet);
+  --desk-sheet-2: var(--sheet-2);
+  --desk-sheet-3: var(--sheet-3);
+  --desk-rule: var(--rule);
+  --desk-rule-strong: var(--rule-strong);
+  --desk-hover-wash: var(--hover-wash);
+  --desk-press-wash: var(--press-wash);
+  --desk-focus: var(--focus);
+  --desk-link: var(--link);
+}
+.band {
+  background: var(--band);
+  --ink: var(--band-ink);
+  --ink-2: var(--band-ink-2);
+  --muted: var(--band-muted);
+  /* Primary buttons (ink fill) take the band color as their text. */
+  --on-ink: var(--band);
+  /* Surfaces: a secondary button or a tag is the raised graphite chip; hover lifts it a step. */
+  --sheet: var(--band-chip);
+  --sheet-2: color-mix(in srgb, var(--band-chip), #ffffff 7%);
+  --sheet-3: var(--band-chip);
+  --rule: var(--band-rule);
+  --rule-strong: color-mix(in srgb, var(--band-rule), #ffffff 8%);
+  --hover-wash: rgba(255, 255, 255, 0.07);
+  --press-wash: rgba(255, 255, 255, 0.11);
+  /* The light-theme focus blue disappears on graphite; use the dark-theme one in both. */
+  --focus: #6da7ec;
+  --link: #86b6ef;
+  color: var(--ink);
+}
+.band .on-desk {
+  --ink: var(--desk-ink);
+  --ink-2: var(--desk-ink-2);
+  --muted: var(--desk-muted);
+  --on-ink: var(--desk-on-ink);
+  --sheet: var(--desk-sheet);
+  --sheet-2: var(--desk-sheet-2);
+  --sheet-3: var(--desk-sheet-3);
+  --rule: var(--desk-rule);
+  --rule-strong: var(--desk-rule-strong);
+  --hover-wash: var(--desk-hover-wash);
+  --press-wash: var(--desk-press-wash);
+  --focus: var(--desk-focus);
+  --link: var(--desk-link);
+}
+
+@layer utilities {
+  /* Semi-condensed display cut of Archivo, used for headings, tab labels and figure values. */
+  .cut-head {
+    font-stretch: var(--stretch-head);
+  }
+  .cut-tab {
+    font-stretch: var(--stretch-tab);
+  }
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+  /* Small uppercase section eyebrows get a little tracking. Not for table headers: those are
+     sentence case (text-meta, font-medium, ink-2). */
+  .eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  /* A horizontal scroller is also the containing block of its absolutely positioned children
+     (sr-only captions and labels), so they can never widen the page. */
+  .scroll-x {
+    position: relative;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Observable Plot house styling. Plot renders SVG with class "hcp-plot". */
+.hcp-plot {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--ink-2);
+  background: transparent;
+  overflow: visible;
+}
+.hcp-plot [aria-label="x-axis tick label"] text,
+.hcp-plot [aria-label="y-axis tick label"] text,
+.hcp-plot [aria-label="fx-axis tick label"] text,
+.hcp-plot [aria-label="fy-axis tick label"] text {
+  fill: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.hcp-plot [aria-label="x-axis label"] text,
+.hcp-plot [aria-label="y-axis label"] text {
+  fill: var(--ink-2);
+  font-weight: 500;
+}
+
+/* Motion without a motion library (docs/PLAN.md 3.2, change C7): three CSS replacements. The
+   reduced-motion rules in the base layer (the OS setting and Settings > Display > Motion) shorten
+   every one of them to 0.001ms, so nothing else is needed for people who prefer less motion. */
+
+/* 1. A view or tab fades in when it opens: <div key={`${view}.${tab}`} className="view-enter">. */
+@keyframes view-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.view-enter {
+  animation: view-enter 120ms ease-out both;
+}
+
+/* 2. The mark's seats pulse one after another while data loads (src/app/Mark.tsx, working):
+   each seat gets class mark-seat and an animation-delay of 150ms times its place. */
+@keyframes mark-seat {
+  50% {
+    opacity: 0.35;
+  }
+}
+.mark-seat {
+  animation: mark-seat 900ms ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mark-seat {
+    animation: none;
+  }
+}
+:root[data-motion="reduce"] .mark-seat {
+  animation: none;
+}
+
+/* 3. The off-screen stage a whole-view export draws on (src/app/wholeView.tsx): nothing in it may
+   be captured mid-fade, so it carries data-hcp-offscreen and every animation and transition in it
+   is off. */
+[data-hcp-offscreen] *,
+[data-hcp-offscreen] *::before,
+[data-hcp-offscreen] *::after {
+  animation: none !important;
+  transition: none !important;
+}

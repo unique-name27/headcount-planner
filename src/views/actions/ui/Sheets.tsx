@@ -1,0 +1,677 @@
+/**
+ * One sheet per owner group (Managers, HR business partners, Leaders, Finance), each a Figure so it
+ * exports (the template app's Sheets.tsx). Inside, one block per person: their counts (each opens the
+ * items behind it), a "Copy note" button with a polite message for that owner, and their items. Each
+ * item shows its severity, what is open, what it is about (opens its records, or its position card),
+ * the view it comes from (opens that tab), when it is due, its tier when its data is below the
+ * on-screen standard, the other views that raised the same matter, and Mark handled and Snooze, both
+ * with Undo (which puts focus back on the item). Approval items close by request state: they offer
+ * Snooze only (docs/PLAN.md 9.6). No item carries an amount.
+ */
+import { useState } from 'react'
+import { Figure } from '@/charts'
+import { Dialog } from '@/components/Dialog'
+import { IconCheck, IconChevronRight, IconCopy, IconReset } from '@/components/icons'
+import { goTo, routeHash } from '@/components/navigation'
+import { TierBadge } from '@/components/tier/TierBadge'
+import { toast } from '@/components/toast'
+import { Button, cx, StatusPill } from '@/components/ui'
+import { useAnalytics } from '@/data/context'
+import type { ViewKey } from '@/data/schema'
+import { Drill, openPosition, resolveDrill } from '@/drill'
+import { openDrill } from '@/drill/store'
+import { formatDate } from '@/lib/dates'
+import { writeClipboard } from '@/lib/export/clipboard'
+import { fmt, plural } from '@/lib/format'
+import {
+  composeNote,
+  daysToDue,
+  dueText,
+  EXPORT_COLUMNS,
+  exportRows,
+  groupByOwner,
+  hashKey,
+  type ItemStatus,
+  itemsDrill,
+  lensFor,
+  type OpenAction,
+  type OwnerBlock,
+  type OwnerGroup,
+  SEVERITY_WORD,
+  settingsOf,
+  statusText,
+  usesOf,
+} from '../engine'
+import { SHEET_FIGURE } from '../engine/figures'
+import { ID } from '../metrics'
+import { useActionMarks } from './store'
+
+/** Owners listed before "Show all"; items listed per owner before "Show more". */
+const OWNERS_SHOWN = 8
+const ITEMS_SHOWN = 10
+/** Groups this small open every owner block. */
+const EXPAND_UP_TO = 12
+
+export type StatusFn = (a: OpenAction) => ItemStatus
+
+/** A small clock: snooze. 16px, 1.5px stroke like the icon set. */
+function IconSnooze({ className }: { className?: string }) {
+  return (
+    <svg
+      width={16}
+      height={16}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+      className={className}
+    >
+      <circle cx="8" cy="8.5" r="5.5" />
+      <path d="M8 5.8v2.9l1.8 1.1" />
+    </svg>
+  )
+}
+
+/* ───────── item actions with Undo ───────── */
+
+/** The row's key in the page (a hash, so no record id sits in the markup). */
+export const rowKeyOf = (a: OpenAction): string => hashKey(a.markKey)
+
+/** After Undo the item is listed again: put focus back on its first button. */
+export function focusRestored(rowKey: string): void {
+  if (typeof window === 'undefined') return
+  window.setTimeout(() => {
+    const row = document.querySelector<HTMLElement>(`[data-item-key="${rowKey}"]`)
+    const target = row?.querySelector<HTMLElement>('[data-item-action]') ?? row
+    target?.focus()
+  }, 0)
+}
+
+export function useItemActions() {
+  const { metrics } = useAnalytics()
+  const handle = useActionMarks((s) => s.handle)
+  const snooze = useActionMarks((s) => s.snooze)
+  const reopen = useActionMarks((s) => s.reopen)
+  const restore = useActionMarks((s) => s.restore)
+  const { snoozeDays } = settingsOf(metrics)
+  const undoable = (
+    a: OpenAction,
+    message: string,
+    description: string,
+    snap: Parameters<typeof restore>[0],
+  ) =>
+    toast(message, {
+      description,
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          restore(snap)
+          focusRestored(rowKeyOf(a))
+        },
+      },
+    })
+  const savedNote = () => {
+    const s = useActionMarks.getState()
+    if (!s.saved) return 'This browser did not save it, so it lasts for this visit.'
+    return s.name ? `Kept as ${s.name} in this browser.` : 'Kept in this browser.'
+  }
+  return {
+    snoozeDays,
+    handle: (a: OpenAction) =>
+      undoable(a, `Marked handled: ${a.item.subject.label}`, savedNote(), handle([a])),
+    snooze: (a: OpenAction) =>
+      undoable(
+        a,
+        `Snoozed for ${snoozeDays} d: ${a.item.subject.label}`,
+        `It comes back on its own${a.item.fingerprint ? ', or sooner if it changes' : ''}. ${savedNote()}`,
+        snooze([a], snoozeDays),
+      ),
+    reopen: (a: OpenAction) => undoable(a, `Reopened: ${a.item.subject.label}`, savedNote(), reopen([a])),
+  }
+}
+
+/* ───────── focus after a row goes ───────── */
+
+const nextSiblings = (el: Element | null | undefined, back: boolean): Element[] => {
+  const out: Element[] = []
+  for (
+    let r = back ? el?.previousElementSibling : el?.nextElementSibling;
+    r;
+    r = back ? r.previousElementSibling : r.nextElementSibling
+  )
+    out.push(r)
+  return out
+}
+
+/**
+ * Handled, Snooze and Reopen take their row out of the list, and focus would drop to the page.
+ * Note the candidates before it goes (the same button on the next item, then the previous item, the
+ * owner's toggle, the next owner's toggle, then the ones before, the page heading) and focus the
+ * first still on the page once the list has re-rendered.
+ */
+function keepFocusNear(button: HTMLElement) {
+  const action = `[data-item-action="${button.dataset.itemAction ?? ''}"]`
+  const row = button.closest('[data-item-row]')
+  const owner = row?.closest('[data-owner-row]')
+  const own = owner?.querySelector<HTMLElement>('[data-owner-toggle]') ?? null
+  const toggles = [...document.querySelectorAll<HTMLElement>('[data-owner-toggle]')]
+  const at = own ? toggles.indexOf(own) : -1
+  const candidates = [
+    ...nextSiblings(row, false).map((r) => r.querySelector<HTMLElement>(action)),
+    ...nextSiblings(row, true).map((r) => r.querySelector<HTMLElement>(action)),
+    own,
+    ...toggles.slice(at + 1),
+    ...toggles.slice(0, Math.max(0, at)).reverse(),
+  ].filter((el): el is HTMLElement => el != null)
+  window.setTimeout(() => {
+    if (button.isConnected) return
+    const target =
+      candidates.find((el) => el.isConnected) ?? document.querySelector<HTMLElement>('[data-actions-heading]')
+    target?.focus()
+  }, 0)
+}
+
+/* ───────── one item ───────── */
+
+const LINK =
+  'cursor-pointer rounded-mark underline decoration-rule-strong decoration-dotted decoration-1 underline-offset-[3px] hover:decoration-ink hover:decoration-solid'
+
+function SubjectLink({ a }: { a: OpenAction }) {
+  const label = a.item.subject.label
+  if (a.item.drill)
+    return (
+      <Drill spec={a.item.drill} label={`Show the records behind ${label}`}>
+        {label}
+      </Drill>
+    )
+  if (a.positionId) {
+    const id = a.positionId
+    return (
+      <button type="button" onClick={() => openPosition(id)} title={`Open position ${id}`} className={LINK}>
+        {label}
+      </button>
+    )
+  }
+  return <span>{label}</span>
+}
+
+function FromLink({ a }: { a: OpenAction }) {
+  const view = a.item.view as ViewKey
+  const tab = a.item.tab ?? ''
+  return (
+    <a
+      href={routeHash(view, tab)}
+      onClick={(e) => {
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+        e.preventDefault()
+        goTo(view, tab)
+      }}
+      className="rounded-mark text-ink-2 underline decoration-rule-strong underline-offset-2 hover:text-ink hover:decoration-ink"
+    >
+      {a.from}
+    </a>
+  )
+}
+
+/** Who an item waits on, in the row: "Waiting on you" when it is the Acting as person, else "Waiting on Dana Ito". */
+export function waitingOn(
+  a: Pick<OpenAction, 'isTeam' | 'ownerName' | 'ownerId'>,
+  me: { id: string | null; name: string } | null,
+): string {
+  if (a.isTeam) return a.ownerName
+  const mine = !!me && (me.id && a.ownerId ? me.id === a.ownerId : sameName(me.name, a.ownerName))
+  return mine ? 'Waiting on you' : `Waiting on ${a.ownerName}`
+}
+
+const sameName = (x: string, y: string) => x.trim().toLowerCase() === y.trim().toLowerCase()
+
+/** A roll-up held by several people: who holds its items, each with their count and a note to copy. */
+function RollupOwners({ a }: { a: OpenAction }) {
+  const ctx = useAnalytics()
+  const [open, setOpen] = useState(false)
+  const blocks = groupByOwner(a.members ?? [], ctx.asOf).flatMap((g) => g.owners)
+  if (blocks.length < 2) return null
+  const id = `rollup-owners-${rowKeyOf(a)}`
+  return (
+    <div className="mt-1">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen(!open)}
+        className="inline-flex items-center gap-1 rounded-mark text-meta font-medium text-link hover:underline"
+      >
+        <IconChevronRight className={cx('size-3.5 transition-transform duration-100', open && 'rotate-90')} />
+        {open ? 'Hide owners' : `By owner (${fmt(blocks.length, 'int')})`}
+      </button>
+      {open && (
+        <ul id={id} aria-label={`Who holds ${a.item.subject.label}`} className="mt-1 border-t border-rule">
+          {blocks.map((b) => (
+            <li
+              key={b.key}
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-rule py-1 text-meta text-ink-2"
+            >
+              <span className="min-w-0 flex-1 basis-40 truncate font-medium text-ink">{b.name}</span>
+              <Drill
+                spec={() => itemsDrill(ctx, `${a.item.subject.label}: ${b.name}`, b.items)}
+                label={`Show the ${plural(b.items.length, 'item')} ${b.name} holds`}
+                className="tnum"
+              >
+                {plural(b.items.length, 'item')}
+              </Drill>
+              <CopyNoteButton block={b} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+export function ItemRow({
+  a,
+  parked,
+  status,
+  showOwner = false,
+}: {
+  a: OpenAction
+  /** The handled and snoozed list: Reopen in place of Handled and Snooze. */
+  parked: boolean
+  status: ItemStatus
+  /** Say who it waits on (a list that is not grouped by owner). */
+  showOwner?: boolean
+}) {
+  const ctx = useAnalytics()
+  const { asOf } = ctx
+  const me = lensFor(ctx).me
+  const act = useItemActions()
+  const days = daysToDue(a.item.due, asOf)
+  const overdue = days != null && days < 0
+  const changed = status.state === 'open' ? status.changedSince : undefined
+  return (
+    <li
+      data-item-row=""
+      data-item-key={rowKeyOf(a)}
+      tabIndex={-1}
+      className="grid grid-cols-1 gap-x-3 gap-y-1.5 border-t border-rule py-2.5 pr-4 pl-4 outline-none sm:grid-cols-[76px_minmax(0,1fr)_auto] sm:pl-10"
+    >
+      <div className="flex flex-wrap items-center gap-1.5 pt-px sm:flex-col sm:items-start">
+        <StatusPill severity={a.item.severity} quiet label={SEVERITY_WORD[a.item.severity]} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-small leading-snug text-ink">{a.item.what}</p>
+        <p className="mt-0.5 text-meta leading-snug text-ink-2">
+          <SubjectLink a={a} />{' '}
+          <span className="whitespace-nowrap">
+            <span aria-hidden="true" className="pr-1.5 pl-0.5 text-muted">
+              ·
+            </span>
+            <FromLink a={a} />
+          </span>
+          {showOwner && ' '}
+          {showOwner && (
+            <span className="whitespace-nowrap">
+              <span aria-hidden="true" className="pr-1.5 pl-0.5 text-muted">
+                ·
+              </span>
+              {waitingOn(a, me)}
+            </span>
+          )}
+        </p>
+        {a.item.note && <p className="mt-1 text-meta leading-snug text-muted">{a.item.note}</p>}
+        {!parked && a.members && <RollupOwners a={a} />}
+        {(a.alsoFrom.length > 0 || a.below || changed || a.item.snoozeOnly) && (
+          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-meta leading-snug text-muted">
+            {changed && <span>Changed since it was marked on {formatDate(changed.slice(0, 10))}</span>}
+            {a.alsoFrom.length > 0 && <span>Also raised in {a.alsoFrom.join(', ')}</span>}
+            {a.item.snoozeOnly && <span>{a.item.closesWhen ?? 'Closes when the request is decided'}</span>}
+            {a.below && (
+              <TierBadge
+                tier={a.below.tier}
+                compact
+                explain={`${a.below.subject} is below your data standard. Workflow items still show.`}
+                dataset={a.below.dataset}
+              />
+            )}
+          </p>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 sm:flex-col sm:items-end">
+        <span
+          className={cx('text-meta whitespace-nowrap', overdue ? 'font-medium text-bad-text' : 'text-ink-2')}
+        >
+          {!parked ? dueText(a.item.due, asOf) : statusText(status)}
+        </span>
+        <span className="flex gap-1 max-sm:ml-auto">
+          {!parked ? (
+            <>
+              {/* Approval items close by request state: "Mark handled" is off for them (9.6). */}
+              {!a.item.snoozeOnly && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon={<IconCheck className="size-3.5" />}
+                  data-item-action="handle"
+                  onClick={(e) => {
+                    keepFocusNear(e.currentTarget)
+                    act.handle(a)
+                  }}
+                  aria-label={`Mark handled: ${a.item.subject.label}`}
+                >
+                  Handled
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={<IconSnooze className="size-3.5" />}
+                data-item-action="snooze"
+                onClick={(e) => {
+                  keepFocusNear(e.currentTarget)
+                  act.snooze(a)
+                }}
+                aria-label={`Snooze ${act.snoozeDays} days: ${a.item.subject.label}`}
+              >
+                Snooze {act.snoozeDays} d
+              </Button>
+            </>
+          ) : (
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<IconReset className="size-3.5" />}
+              data-item-action="reopen"
+              onClick={(e) => {
+                keepFocusNear(e.currentTarget)
+                act.reopen(a)
+              }}
+              aria-label={`Reopen: ${a.item.subject.label}`}
+            >
+              Reopen
+            </Button>
+          )}
+        </span>
+      </div>
+    </li>
+  )
+}
+
+/* ───────── one owner ───────── */
+
+function CopyNoteButton({ block }: { block: OwnerBlock }) {
+  const ctx = useAnalytics()
+  const { asOf } = ctx
+  const [fallback, setFallback] = useState<string | null>(null)
+  const copy = async () => {
+    // A roll-up's items each go in the note, so the owner reads every record by name.
+    const items = block.items.flatMap((a) => (a.members ? [...a.members] : [a]))
+    const text = composeNote({ name: block.name, isTeam: block.isTeam }, items, asOf, {
+      me: lensFor(ctx).me?.name,
+    })
+    if (!text) return
+    try {
+      await writeClipboard(text)
+      toast(`Note for ${block.name} copied`, {
+        tone: 'good',
+        description: `${plural(block.items.length, 'item')}, ready to paste into email or chat.`,
+      })
+    } catch {
+      setFallback(text)
+    }
+  }
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="ghost"
+        data-tour="actions-copy-note"
+        icon={<IconCopy className="size-3.5" />}
+        onClick={() => void copy()}
+        aria-label={`Copy note for ${block.name}`}
+      >
+        Copy note
+      </Button>
+      <Dialog
+        open={fallback != null}
+        onOpenChange={(o) => !o && setFallback(null)}
+        title={`Note for ${block.name}`}
+        description="The browser blocked copying. Select the text and copy it from here."
+        footer={
+          <Button variant="primary" onClick={() => setFallback(null)}>
+            Done
+          </Button>
+        }
+      >
+        <textarea
+          readOnly
+          value={fallback ?? ''}
+          onFocus={(e) => e.currentTarget.select()}
+          aria-label={`Note for ${block.name}`}
+          className="h-[320px] w-full resize-none rounded-control bg-sheet-2 p-3 font-[inherit] text-small leading-snug text-ink outline-none"
+        />
+      </Dialog>
+    </>
+  )
+}
+
+function OwnerRow({
+  block,
+  open,
+  onToggle,
+  parked,
+  statusOf,
+}: {
+  block: OwnerBlock
+  open: boolean
+  onToggle: () => void
+  parked: boolean
+  statusOf: StatusFn
+}) {
+  const ctx = useAnalytics()
+  const [all, setAll] = useState(false)
+  const shown = all ? block.items : block.items.slice(0, ITEMS_SHOWN)
+  const more = block.items.length - shown.length
+  const overdueItems = block.items.filter((a) => (daysToDue(a.item.due, ctx.asOf) ?? 0) < 0)
+  const listId = `actions-owner-${hashKey(block.key)}`
+  return (
+    <li data-owner-row="" className="border-t border-rule first:border-t-0">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-1.5 sm:flex-nowrap">
+        <button
+          type="button"
+          data-owner-toggle=""
+          aria-expanded={open}
+          aria-controls={listId}
+          onClick={onToggle}
+          className="flex min-w-0 flex-1 basis-48 items-center gap-2 rounded-control px-2 py-1 text-left hover:bg-hover"
+        >
+          <IconChevronRight
+            className={cx(
+              'size-3.5 shrink-0 text-muted transition-transform duration-100',
+              open && 'rotate-90',
+            )}
+          />
+          <span className="min-w-0 truncate text-small font-semibold text-ink">{block.name}</span>
+        </button>
+        <span className="flex shrink-0 items-center gap-1.5 text-meta text-ink-2">
+          {block.critical > 0 && (
+            <>
+              <StatusPill severity="critical" quiet label={`${fmt(block.critical, 'int')} critical`} />
+              <span aria-hidden="true" className="text-muted">
+                ·
+              </span>
+            </>
+          )}
+          <Drill
+            spec={() => itemsDrill(ctx, `Items waiting on ${block.name}`, block.items, { status: statusOf })}
+            label={`Show the ${plural(block.items.length, 'item')} waiting on ${block.name}`}
+            className="tnum"
+          >
+            {plural(block.items.length, 'item')}
+          </Drill>
+          {overdueItems.length > 0 && (
+            <>
+              <span aria-hidden="true" className="text-muted">
+                ·
+              </span>
+              <Drill
+                spec={() =>
+                  itemsDrill(ctx, `Overdue items waiting on ${block.name}`, overdueItems, {
+                    status: statusOf,
+                  })
+                }
+                label={`Show the ${plural(overdueItems.length, 'overdue item')} waiting on ${block.name}`}
+                className="tnum"
+              >
+                {fmt(overdueItems.length, 'int')} overdue
+              </Drill>
+            </>
+          )}
+        </span>
+        {/* An owner group's roll-ups carry a note per owner inside them, not one for the group. */}
+        {!parked && !block.ownerKey.startsWith('group:') && <CopyNoteButton block={block} />}
+      </div>
+      {open && (
+        <ul id={listId} aria-label={`Items waiting on ${block.name}`}>
+          {shown.map((a) => (
+            <ItemRow key={a.id} a={a} parked={parked} status={statusOf(a)} />
+          ))}
+          {more > 0 && (
+            <li className="border-t border-rule py-1.5 pl-4 sm:pl-10">
+              <Button size="sm" variant="ghost" onClick={() => setAll(true)}>
+                Show {fmt(more, 'int')} more
+              </Button>
+            </li>
+          )}
+        </ul>
+      )}
+    </li>
+  )
+}
+
+/* ───────── one owner group ───────── */
+
+export function OwnerSheet({
+  group,
+  parked,
+  statusOf,
+}: {
+  group: OwnerGroup
+  /** The handled and snoozed list. */
+  parked: boolean
+  statusOf: StatusFn
+}) {
+  const ctx = useAnalytics()
+  const small = group.items.length <= EXPAND_UP_TO
+  // The reader's own choices per owner; owners they have not touched follow the group's size.
+  const [chosen, setChosen] = useState<ReadonlyMap<string, boolean>>(new Map())
+  const [allOwners, setAllOwners] = useState(false)
+  const isOpenBlock = (b: OwnerBlock) => chosen.get(b.key) ?? small
+  const toggle = (b: OwnerBlock) => setChosen(new Map(chosen).set(b.key, !isOpenBlock(b)))
+  const everyOpen = group.owners.every(isOpenBlock)
+  const setEvery = (open: boolean) => setChosen(new Map(group.owners.map((b) => [b.key, open])))
+  const owners = allOwners ? group.owners : group.owners.slice(0, OWNERS_SHOWN)
+  const hiddenOwners = group.owners.length - owners.length
+  const overdue = group.items.filter((a) => (daysToDue(a.item.due, ctx.asOf) ?? 0) < 0)
+  const critical = group.items.filter((a) => a.item.severity === 'critical')
+  const rows = exportRows(group.items, ctx.asOf, statusOf)
+  const verb = !parked ? 'open' : 'handled or snoozed'
+  return (
+    <Figure
+      id={SHEET_FIGURE[group.role]}
+      title={group.label}
+      subtitle={`${plural(group.owners.length, 'owner')}, the most pressing first`}
+      data={rows}
+      columns={EXPORT_COLUMNS}
+      image={false}
+      tableToggle={false}
+      metric={ID.itemsOpen}
+      uses={usesOf(group.items)}
+      actions={
+        group.owners.length > 1 ? (
+          <Button size="sm" variant="ghost" onClick={() => setEvery(!everyOpen)} aria-expanded={everyOpen}>
+            {everyOpen ? 'Collapse all' : 'Expand all'}
+          </Button>
+        ) : undefined
+      }
+    >
+      <div className="-mx-4 -mt-1 -mb-5 lg:-mx-5">
+        <p className="px-4 pb-2 text-meta text-ink-2">
+          <Drill
+            spec={() => itemsDrill(ctx, `${group.label}: ${verb} items`, group.items, { status: statusOf })}
+            label={`Show the ${plural(group.items.length, 'item')} for ${group.label}`}
+            className="tnum font-semibold text-ink"
+          >
+            {plural(group.items.length, `${verb} item`)}
+          </Drill>
+          {overdue.length > 0 && (
+            <>
+              <span aria-hidden="true" className="px-1.5 text-muted">
+                ·
+              </span>
+              <Drill
+                spec={() => itemsDrill(ctx, `${group.label}: overdue items`, overdue, { status: statusOf })}
+                label={`Show the ${plural(overdue.length, 'overdue item')} for ${group.label}`}
+                className="tnum"
+              >
+                {fmt(overdue.length, 'int')} overdue
+              </Drill>
+            </>
+          )}
+          {critical.length > 0 && (
+            <>
+              <span aria-hidden="true" className="px-1.5 text-muted">
+                ·
+              </span>
+              <Drill
+                spec={() => itemsDrill(ctx, `${group.label}: critical items`, critical, { status: statusOf })}
+                label={`Show the ${plural(critical.length, 'critical item')} for ${group.label}`}
+                className="tnum"
+              >
+                {fmt(critical.length, 'int')} critical
+              </Drill>
+            </>
+          )}
+        </p>
+        <ul
+          aria-label={`Owners in ${group.label}`}
+          data-tour="actions-owner-sheet"
+          className="border-t border-rule"
+        >
+          {owners.map((b) => (
+            <OwnerRow
+              key={b.key}
+              block={b}
+              open={isOpenBlock(b)}
+              onToggle={() => toggle(b)}
+              parked={parked}
+              statusOf={statusOf}
+            />
+          ))}
+        </ul>
+        {hiddenOwners > 0 && (
+          <div className="border-t border-rule px-2 py-1.5">
+            <Button size="sm" variant="ghost" onClick={() => setAllOwners(true)}>
+              Show all {fmt(group.owners.length, 'int')} owners
+            </Button>
+          </div>
+        )}
+      </div>
+    </Figure>
+  )
+}
+
+/** Open the items behind a count from an event handler (charts' onSelect). */
+export function drillItems(
+  ctx: Parameters<typeof itemsDrill>[0],
+  title: string,
+  items: readonly OpenAction[],
+  status?: StatusFn,
+): void {
+  if (!items.length) return
+  const spec = resolveDrill(() => itemsDrill(ctx, title, items, { status }))
+  if (spec) openDrill(spec)
+}

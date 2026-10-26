@@ -1,0 +1,5 @@
+# LF in the repository and in every checkout, so snapshot files never flip to CRLF on Windows.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.png binary
+*.woff2 binary

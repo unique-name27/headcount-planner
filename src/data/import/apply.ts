@@ -1,0 +1,556 @@
+/**
+ * Turn a mapped sheet into typed dataset rows.
+ *
+ * Steps per row: coerce every mapped cell → resolve people against Workers → fill documented
+ * defaults → drop the row if a required value is still blank. Then de-duplicate by the dataset's
+ * row key (the row with the most recent date wins) and, for Workers itself, link managers. Every
+ * change is written to the exceptions log; nothing is guessed silently.
+ */
+import { dedupeKey } from '../quality/importSummary'
+import type { DatasetDef, DatasetKey, Datasets, FieldDef, WorkerRow } from '../schema'
+import { DEFAULT_HOURS_PER_YEAR, type FillMode, fillDefaults, type SheetContext } from './defaults'
+import { buildPersonIndex, type LinkRow, linkManagers, matchPerson, type PersonIndex } from './managers'
+import { type ColumnSettings, coerceValue, detectDateOrder, detectPercentWhole } from './normalize'
+import { readNumber } from './numbers'
+import { displayValue, headerTokens, isBlank, normalizeHeader, normText } from './text'
+import type {
+  ApplyOptions,
+  DateOrder,
+  HourlyConversion,
+  ImportIssue,
+  ImportResult,
+  ImportStats,
+  IssueAction,
+  IssueCode,
+  Mapping,
+  ParsedSheet,
+  SuggestedOptions,
+} from './types'
+
+export interface ApplyArgs {
+  sheet: ParsedSheet
+  def: DatasetDef
+  mapping: Mapping
+  /** The loaded workers, for linking people in other datasets (and leading-zero repair). */
+  roster?: readonly WorkerRow[]
+  options?: ApplyOptions
+}
+
+/* ───────────── option detection ───────────── */
+
+const BASIS_HEADER =
+  /\b(?:pay|comp|compensation|salary|wage|rate)\s(?:basis|type|frequency|class|unit)\b|^basis$|\bhourly\ssalaried\b|\bsalaried\shourly\b|\bflsa\sbasis\b/
+
+function columnValues(sheet: ParsedSheet, header: string): unknown[] {
+  return sheet.rows.map((r) => r[header]).filter((v) => !isBlank(v))
+}
+
+function mappedHeaders(mapping: Mapping): Set<string> {
+  return new Set(Object.values(mapping).flatMap((m) => (m.header ? [m.header] : [])))
+}
+
+function detectHourly(sheet: ParsedSheet, mapping: Mapping): HourlyConversion | null {
+  const used = mappedHeaders(mapping)
+  const basisHeader = sheet.headers.find(
+    (h) =>
+      !used.has(h) &&
+      BASIS_HEADER.test(normalizeHeader(h)) &&
+      sheet.rows.some((r) => normText(r[h]).startsWith('hour')),
+  )
+  if (basisHeader) return { hours: DEFAULT_HOURS_PER_YEAR, basisHeader }
+  const base = mapping.baseSalary?.header
+  if (!base) return null
+  const nums = columnValues(sheet, base)
+    .map((v) => readNumber(v, true).value)
+    .filter((n): n is number => n != null && Number.isFinite(n))
+  if (!nums.length) return null
+  const hourlyLike = nums.filter((n) => n > 5 && n < 500).length
+  return hourlyLike / nums.length >= 0.8 ? { hours: DEFAULT_HOURS_PER_YEAR, basisHeader: null } : null
+}
+
+/**
+ * Options read from the data: day order per mapped date column, whole-number percent columns,
+ * and (compensation) whether base pay is hourly. Show these in the Data room so the user can
+ * correct them; `applyMapping` uses the same detection for anything not passed in.
+ */
+export function suggestOptions(sheet: ParsedSheet, def: DatasetDef, mapping: Mapping): SuggestedOptions {
+  const out: SuggestedOptions = { dateOrders: {}, percentWhole: {}, hourlyToAnnual: null }
+  const headers = new Set(sheet.headers)
+  for (const f of def.fields) {
+    const h = mapping[f.key]?.header
+    if (!h || !headers.has(h)) continue
+    // Assumption values can be dates too (merit and promotion dates).
+    if (f.type === 'date' || f.type === 'datetime' || (def.key === 'assumptions' && f.key === 'value'))
+      out.dateOrders[h] = detectDateOrder(columnValues(sheet, h))
+    if (f.type === 'percent') out.percentWhole[f.key] = detectPercentWhole(columnValues(sheet, h))
+  }
+  if (def.key === 'comp') out.hourlyToAnnual = detectHourly(sheet, mapping)
+  return out
+}
+
+/* ───────────── helpers ───────────── */
+
+/** Datasets keyed by a person who must be in Workers, and the fields that name them. */
+const PERSON_FIELDS: Partial<Record<DatasetKey, string[]>> = {
+  comp: ['employeeId'],
+}
+
+/** Fields that may name a person instead of giving an ID; resolved by name when unambiguous. */
+const PERSON_REF_FIELDS: Partial<Record<DatasetKey, string[]>> = {
+  reqs: ['hiringManagerId'],
+  requests: ['requesterId', 'submittedById', 'personId'],
+}
+
+const FIRST_NAME = ['first name', 'given name', 'preferred first name', 'legal first name', 'firstname']
+const LAST_NAME = ['last name', 'surname', 'family name', 'legal last name', 'lastname']
+
+function findNameParts(sheet: ParsedSheet, mapping: Mapping, def: DatasetDef): [string, string] | null {
+  if (def.key !== 'workers' || mapping.name?.header) return null
+  const used = mappedHeaders(mapping)
+  const find = (names: string[]) =>
+    sheet.headers.find((h) => !used.has(h) && names.includes(headerTokens(h).join(' ')))
+  const first = find(FIRST_NAME)
+  const last = find(LAST_NAME)
+  return first && last ? [first, last] : null
+}
+
+function rowId(def: DatasetDef, rec: Record<string, unknown>): string | null {
+  const parts = def.rowKey.map((k) => rec[k]).filter((v) => v != null && v !== '')
+  return parts.length ? parts.join(' · ') : null
+}
+
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+
+function emptyStats(rowsIn: number): ImportStats {
+  return {
+    rowsIn,
+    rowsOut: 0,
+    skippedMissingRequired: 0,
+    duplicates: 0,
+    defaulted: 0,
+    defaults: {},
+    blanked: 0,
+    notInRoster: 0,
+    rowsWithIssues: 0,
+  }
+}
+
+/** Each worker's latest row (by assignment start, then hire date): who they are now. */
+function latestByPerson(roster: readonly WorkerRow[]): Map<string, WorkerRow> {
+  const out = new Map<string, WorkerRow>()
+  const at = (w: WorkerRow) => w.assignmentStart ?? w.hireDate ?? ''
+  for (const w of roster) {
+    const cur = out.get(w.employeeId)
+    if (!cur || at(w) >= at(cur)) out.set(w.employeeId, w)
+  }
+  return out
+}
+
+/* ───────────── apply ───────────── */
+
+interface Column {
+  field: FieldDef
+  header: string | null
+  settings: ColumnSettings
+}
+
+interface Built {
+  rec: Record<string, unknown>
+  row: number
+  issues: ImportIssue[]
+  /** Field keys a default filled in this row. */
+  filled: string[]
+  /** Defaults applied because no column is mapped to the field (summarized, not logged per row). */
+  unmappedFills: { key: string; what: string }[]
+}
+
+/** Required fields a default can supply, so an unmapped column doesn't block the import. */
+const DERIVABLE_REQUIRED: Partial<Record<DatasetKey, string[]>> = {
+  workers: ['workerType'],
+  assumptions: ['key'],
+}
+
+/**
+ * Coerce, validate, default and de-duplicate a mapped sheet. Pass the K type parameter
+ * (`applyMapping<'positions'>(…)`) to get typed rows; with the default the rows are the union.
+ */
+export function applyMapping<K extends DatasetKey = DatasetKey>(args: ApplyArgs): ImportResult<K> {
+  const { sheet, def, mapping } = args
+  const options = args.options ?? {}
+  const suggested = suggestOptions(sheet, def, mapping)
+  const dateOrders: Record<string, DateOrder> = {}
+  for (const [h, g] of Object.entries(suggested.dateOrders))
+    dateOrders[h] = options.dateOrders?.[h] ?? g.order
+  const percentWhole: Record<string, boolean> = {}
+  for (const [k, w] of Object.entries(suggested.percentWhole))
+    percentWhole[k] = options.percentWhole?.[k] ?? w
+  const hourly = options.hourlyToAnnual === undefined ? suggested.hourlyToAnnual : options.hourlyToAnnual
+  const used = { dateOrders, percentWhole, hourlyToAnnual: hourly }
+
+  const headerSet = new Set(sheet.headers)
+  const columns: Column[] = def.fields.map((field) => {
+    const h = mapping[field.key]?.header ?? null
+    const header = h && headerSet.has(h) ? h : null
+    return {
+      field,
+      header,
+      settings: {
+        dateOrder: (header && dateOrders[header]) || 'MDY',
+        percentWhole: percentWhole[field.key] ?? false,
+        valueMap: options.valueMaps?.[field.key],
+      },
+    }
+  })
+  const mappedKeys = new Set(columns.filter((c) => c.header).map((c) => c.field.key))
+  const issues: ImportIssue[] = []
+  const stats = emptyStats(sheet.rows.length)
+  const result = (rows: Record<string, unknown>[]): ImportResult<K> => ({
+    dataset: def.key as K,
+    // The field definitions drive every record's shape, so the rows match the dataset's type.
+    rows: rows as unknown as Datasets[K],
+    issues,
+    stats,
+    used,
+  })
+
+  const derivable = new Set(DERIVABLE_REQUIRED[def.key] ?? [])
+  const blockers = def.fields.filter((f) => f.required && !mappedKeys.has(f.key) && !derivable.has(f.key))
+  const oneOf = def.requireOneOf ?? []
+  const oneOfLabels = oneOf.map((k) => def.fields.find((f) => f.key === k)?.label ?? k).join(' or ')
+  if (oneOf.length && !oneOf.some((k) => mappedKeys.has(k))) {
+    issues.push({
+      row: 0,
+      id: null,
+      field: oneOf[0],
+      label: oneOfLabels,
+      value: '',
+      code: 'column-missing',
+      issue: `${oneOfLabels} is required, but no column is mapped to either. Map a column to import this sheet.`,
+      action: 'row-skipped',
+    })
+    stats.skippedMissingRequired = sheet.rows.length
+    return result([])
+  }
+  if (blockers.length) {
+    for (const f of blockers)
+      issues.push({
+        row: 0,
+        id: null,
+        field: f.key,
+        label: f.label,
+        value: '',
+        code: 'column-missing',
+        issue: `${f.label} is required, but no column is mapped to it. Map a column to import this sheet.`,
+        action: 'row-skipped',
+      })
+    stats.skippedMissingRequired = sheet.rows.length
+    return result([])
+  }
+
+  const roster = args.roster?.length ? args.roster : null
+  const rosterIdx: PersonIndex | null = roster ? buildPersonIndex(roster) : null
+  const ctx: SheetContext = {
+    nameParts: findNameParts(sheet, mapping, def),
+    roster: roster ? latestByPerson(roster) : null,
+    hourly,
+  }
+  /** Conversions reported once for the sheet: field → what was converted and on how many rows. */
+  const tallies = new Map<string, { key: string; what: string; count: number }>()
+  const fieldByKey = new Map(def.fields.map((f) => [f.key, f]))
+
+  const built: Built[] = []
+  sheet.rows.forEach((raw, i) => {
+    const row = sheet.rowNumbers[i] ?? i + 2
+    // Field keys only, so a record never takes a key from the file, and no prototype besides.
+    const rec: Record<string, unknown> = Object.create(null)
+    const rowIssues: ImportIssue[] = []
+    const add = (
+      field: FieldDef | undefined,
+      key: string,
+      value: unknown,
+      code: IssueCode,
+      issue: string,
+      action: IssueAction,
+    ) =>
+      rowIssues.push({
+        row,
+        id: null,
+        field: key,
+        label: field?.label ?? key,
+        value: displayValue(value),
+        code,
+        issue,
+        action,
+      })
+
+    for (const c of columns) {
+      if (!c.header) {
+        rec[c.field.key] = null
+        continue
+      }
+      const v = Object.hasOwn(raw, c.header) ? raw[c.header] : null
+      const r = coerceValue(def.key, c.field, v, c.settings)
+      rec[c.field.key] = r.value ?? null
+      if (r.issue) add(c.field, c.field.key, v, r.code ?? 'unreadable', r.issue, 'left-blank')
+    }
+
+    if (rosterIdx)
+      resolvePeople(def.key, rec, rosterIdx, (key, from, to) => {
+        add(
+          fieldByKey.get(key),
+          key,
+          from,
+          'converted',
+          `Matched to Workers ID ${to} (the ID was written differently).`,
+          'converted',
+        )
+      })
+
+    const filled: string[] = []
+    const unmappedFills: { key: string; what: string }[] = []
+    const fill = (key: string, value: unknown, mode: FillMode = 'silent', what = '') => {
+      // Defaults fill blank cells only: a value that could not be read stays blank and logged.
+      if (rec[key] != null || value == null || value === '' || rowIssues.some((x) => x.field === key)) return
+      rec[key] = value
+      filled.push(key)
+      if (mode === 'silent') return
+      const field = fieldByKey.get(key)
+      if (!mappedKeys.has(key)) unmappedFills.push({ key, what })
+      else if (mode === 'logged')
+        add(
+          field,
+          key,
+          null,
+          'defaulted',
+          `${field?.label ?? key} was blank, so it was ${what}.`,
+          'defaulted',
+        )
+    }
+    const note = (key: string, issue: string, code: IssueCode, action: IssueAction) =>
+      add(fieldByKey.get(key), key, rec[key], code, issue, action)
+    const tally = (key: string, what: string) => {
+      const t = tallies.get(`${key}|${what}`) ?? { key, what, count: 0 }
+      t.count++
+      tallies.set(`${key}|${what}`, t)
+    }
+    fillDefaults(def.key, { rec, raw, fill, note, tally }, ctx)
+
+    const id = rowId(def, rec)
+    if (oneOf.length && oneOf.every((k) => rec[k] == null || rec[k] === '')) {
+      stats.skippedMissingRequired++
+      issues.push({
+        row,
+        id,
+        field: oneOf[0],
+        label: oneOfLabels,
+        value: '',
+        code: 'missing-required',
+        issue: `${oneOfLabels} is blank, and one of them is required.`,
+        action: 'row-skipped',
+      })
+      return
+    }
+    const missing = def.fields.filter((f) => f.required && rec[f.key] == null)
+    if (missing.length) {
+      stats.skippedMissingRequired++
+      for (const f of missing) {
+        const prior = rowIssues.find((x) => x.field === f.key)
+        if (prior) issues.push({ ...prior, id, action: 'row-skipped' })
+        else
+          issues.push({
+            row,
+            id,
+            field: f.key,
+            label: f.label,
+            value: '',
+            code: 'missing-required',
+            issue: `${f.label} is blank, and it is required.`,
+            action: 'row-skipped',
+          })
+      }
+      return
+    }
+    for (const x of rowIssues) x.id = id
+    built.push({ rec, row, issues: rowIssues, filled, unmappedFills })
+  })
+
+  const kept = dedupe(def, built, issues, stats)
+
+  // Defaults are counted on the rows that are imported, after duplicates are dropped, so the
+  // counts add up against rowsOut.
+  const unmappedDefaults = new Map<string, { key: string; count: number; what: string }>()
+  for (const b of kept) {
+    for (const key of b.filled) {
+      stats.defaulted++
+      stats.defaults[key] = (stats.defaults[key] ?? 0) + 1
+    }
+    for (const u of b.unmappedFills) {
+      const id = `${u.key}|${u.what}`
+      const agg = unmappedDefaults.get(id) ?? { key: u.key, count: 0, what: u.what }
+      agg.count++
+      unmappedDefaults.set(id, agg)
+    }
+  }
+  const fieldOrder = (key: string) => def.fields.findIndex((f) => f.key === key)
+  for (const u of [...unmappedDefaults.values()].sort((a, b) => fieldOrder(a.key) - fieldOrder(b.key))) {
+    const label = fieldByKey.get(u.key)?.label ?? u.key
+    issues.push({
+      row: 0,
+      id: null,
+      field: u.key,
+      label,
+      value: '',
+      code: 'defaulted',
+      issue: `No column is mapped to ${label}, so ${u.count.toLocaleString('en-US')} ${u.count === 1 ? 'row was' : 'rows were'} ${u.what}.`,
+      action: 'defaulted',
+    })
+  }
+
+  for (const t of tallies.values()) {
+    const label = fieldByKey.get(t.key)?.label ?? t.key
+    issues.push({
+      row: 0,
+      id: null,
+      field: t.key,
+      label,
+      value: '',
+      code: 'converted',
+      issue: `${cap(t.what)} on ${t.count.toLocaleString('en-US')} ${t.count === 1 ? 'row' : 'rows'}.`,
+      action: 'converted',
+    })
+  }
+
+  for (const b of kept) {
+    issues.push(...b.issues)
+    stats.blanked += b.issues.filter((x) => x.action === 'left-blank').length
+  }
+
+  if (def.key === 'workers') {
+    const managerField = fieldByKey.get('managerId')
+    stats.managers = linkManagers(kept as unknown as LinkRow[], issues, managerField?.label)
+  }
+  if (rosterIdx) checkRoster(def, kept, rosterIdx, issues, stats)
+
+  issues.sort((a, b) => a.row - b.row)
+  stats.rowsOut = kept.length
+  stats.rowsWithIssues = new Set(
+    issues.filter((x) => x.row > 0 && x.action !== 'row-skipped').map((x) => x.row),
+  ).size
+  return result(kept.map((b) => b.rec))
+}
+
+/** Fix IDs that lost leading zeros or case, and turn names into IDs where the field allows names. */
+function resolvePeople(
+  dataset: DatasetKey,
+  rec: Record<string, unknown>,
+  idx: PersonIndex,
+  onFixed: (key: string, from: string, to: string) => void,
+): void {
+  for (const key of PERSON_FIELDS[dataset] ?? []) {
+    const ref = rec[key]
+    if (typeof ref !== 'string' || idx.ids.has(ref)) continue
+    const m = matchPerson(ref, idx)
+    if (m.kind === 'id-fixed') {
+      rec[key] = m.id
+      onFixed(key, ref, m.id)
+    }
+  }
+  for (const key of PERSON_REF_FIELDS[dataset] ?? []) {
+    const ref = rec[key]
+    if (typeof ref !== 'string' || idx.ids.has(ref)) continue
+    const m = matchPerson(ref, idx)
+    if (m.kind === 'id-fixed' || m.kind === 'name') rec[key] = m.id
+  }
+}
+
+/** Keep one row per row key: the one with the latest date anywhere in it (later in the file on a tie). */
+function dedupe(def: DatasetDef, built: Built[], issues: ImportIssue[], stats: ImportStats): Built[] {
+  const dateKeys = def.fields.filter((f) => f.type === 'date' || f.type === 'datetime').map((f) => f.key)
+  const recency = (rec: Record<string, unknown>) =>
+    dateKeys.reduce((m, k) => {
+      const v = rec[k]
+      return typeof v === 'string' && v > m ? v : m
+    }, '')
+  const labels = def.rowKey.map((k) => def.fields.find((f) => f.key === k)?.label ?? k)
+  const label = labels.join(' + ')
+  const out: Built[] = []
+  const at = new Map<string, number>()
+  for (const b of built) {
+    const key = dedupeKey(def.key, b.rec)
+    const i = at.get(key)
+    if (i === undefined) {
+      at.set(key, out.length)
+      out.push(b)
+      continue
+    }
+    const prev = out[i]
+    const sum = def.mergeDuplicates?.sum
+    if (sum) {
+      // The same line twice is two of the same thing: add them up instead of dropping one.
+      const a = prev.rec[sum]
+      const c = b.rec[sum]
+      prev.rec[sum] = (typeof a === 'number' ? a : 0) + (typeof c === 'number' ? c : 0)
+      const what = def.fields.find((f) => f.key === sum)?.label.toLowerCase() ?? sum
+      issues.push({
+        row: b.row,
+        id: rowId(def, b.rec),
+        field: sum,
+        label,
+        value: def.rowKey.map((k) => String(b.rec[k] ?? '')).join(' · '),
+        code: 'converted',
+        issue: `Same line as row ${prev.row}; its ${what} were added to that row.`,
+        action: 'converted',
+      })
+      continue
+    }
+    const rb = recency(b.rec)
+    const rp = recency(prev.rec)
+    const [keep, drop] = rb >= rp ? [b, prev] : [prev, b]
+    const why =
+      rb === rp ? 'the later row in the file was kept' : 'the row with the more recent dates was kept'
+    out[i] = keep
+    stats.duplicates++
+    issues.push({
+      row: drop.row,
+      id: rowId(def, drop.rec),
+      field: def.rowKey[0] ?? '',
+      label,
+      value: def.rowKey.map((k) => String(drop.rec[k] ?? '')).join(' · '),
+      code: 'duplicate',
+      issue: `Same ${label} as row ${keep.row}; ${why}.`,
+      action: 'row-skipped',
+    })
+  }
+  return out
+}
+
+function checkRoster(
+  def: DatasetDef,
+  kept: Built[],
+  idx: PersonIndex,
+  issues: ImportIssue[],
+  stats: ImportStats,
+): void {
+  const fields = PERSON_FIELDS[def.key]
+  if (!fields) return
+  for (const b of kept) {
+    let missing = false
+    for (const key of fields) {
+      const ref = b.rec[key]
+      if (typeof ref !== 'string' || idx.ids.has(ref)) continue
+      missing = true
+      const label = def.fields.find((f) => f.key === key)?.label ?? key
+      issues.push({
+        row: b.row,
+        id: rowId(def, b.rec),
+        field: key,
+        label,
+        value: ref,
+        code: 'not-in-roster',
+        issue: `${cap(label)} ${ref} is not in Workers.`,
+        action: 'kept',
+      })
+    }
+    if (missing) stats.notInRoster++
+  }
+}
