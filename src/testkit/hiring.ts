@@ -4,7 +4,8 @@
  * (src/testkit/crawl.ts `TAB_MODELS`); this module adds what the hiring leak test needs on top:
  *
  *  - `hiringCrawl`: a crawl of Plan > Hiring alone (its six tiles, the quarter table, the open to hire
- *    bars, the velocity chart, the readout, every records list and calculation card behind them, each
+ *    bars, the velocity chart, the hires of the last 3 months by location and department (C37), the
+ *    readout, every records list and calculation card behind them, each
  *    figure's CSV and clipboard text), plus the Open to hire tile the HRBP and Leader homes and My
  *    team re-link (with its records and card). Position cards are opt-in: a card opened from a row
  *    follows its own rules, not the module's (reading H13).

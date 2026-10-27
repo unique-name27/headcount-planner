@@ -2,7 +2,7 @@
  * The sample's nine stories with exact asserts (docs/PLAN.md 13.4, 16.1 "a smoke test finds all 8
  * stories plus story 9"), the versions, closes, cycle and plan state generate.ts adds, the
  * per-position differences of stories 1, 2 and 5, determinism, the README's hand calculations, and
- * Plan > Hiring (9.7, C36) recomputed from raw rows by code of its own for the HRBP's unit, the
+ * Plan > Hiring (9.7, C36 and C37) recomputed from raw rows by code of its own for the HRBP's unit, the
  * leader's org, the company and Manager A's team, against the tab, the engine, Openings, Overview,
  * the forecast, the closes and My team.
  * One generated sample per file (16.0). base.test.ts covers the base datasets; raw/stories.test.ts
@@ -1058,16 +1058,19 @@ describe('the README', () => {
 
 const fmt = (x: number) => x.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-/* ───────────────────────── Plan > Hiring by independent code (docs/PLAN.md 9.7, C36) ───────────────────────── */
+/* ───────────────────────── Plan > Hiring by independent code (docs/PLAN.md 9.7, C36, C37) ───────────────────────── */
 
 /**
  * Plan > Hiring recomputed from the raw rows with code of its own, never src/plan/engine/hiring.ts nor
  * the tab's input (src/views/plan/engine/hiringData.ts): each scope from the position rows and the
  * assignments, the approved seats on the as-of date (R1, from the rows in effect, the assignments
- * and the reqs), current heads with their split, accepted starts, open to hire by quarter end, hires
- * and exits by closed month, heads at each closed month-end, the paces, attrition and months to
- * close. Only the forecast's modeled exits are the forecast's own (6.7's cohort model is not redone
- * here); the check reads them from the forecast view's months and holds their sum to the tab's.
+ * and the reqs), current heads with their split, future starts (signed offers, C37), moves in (C37:
+ * none on the sample), open to hire by quarter end, hires and exits by closed month, heads at each
+ * closed month-end, the paces, attrition and months to close, the months ahead's future starts by
+ * start month, and the hires of the last 3 closed months by the department and location of the seat
+ * on the hire date (C37). Only the forecast's modeled exits are the forecast's own (6.7's cohort
+ * model is not redone here); the check reads them from the forecast view's months and holds their
+ * sum to the tab's.
  */
 const HG_FY_END: ISODate = '2027-03-31'
 /** The last close (asserted): history is every quarter ending on or before its month-end (H1). */
@@ -1076,6 +1079,8 @@ const HG_LAST_CLOSE: Month = '2026-09'
 const HG_TRAILING = monthsBetween('2025-10', HG_LAST_CLOSE)
 /** The fiscal year's open months, after the last close. */
 const HG_OPEN = monthsBetween('2026-10', '2027-03')
+/** The last 3 closed months: the recent hires table's columns (C37). */
+const HG_RECENT = HG_TRAILING.slice(-3)
 const HG_QUARTERS = [
   { key: 'q1', start: '2026-04-01', end: '2026-06-30' },
   { key: 'q2', start: '2026-07-01', end: '2026-09-30' },
@@ -1278,6 +1283,14 @@ interface HgMonth {
   exits: number
   heads: number
 }
+/** The hires of the last 3 closed months by department and location (C37): each key's counts by month. */
+interface HgRecent {
+  /** "department|location" with a hire. */
+  pairs: Map<string, number[]>
+  departments: Map<string, number[]>
+  locations: Map<string, number[]>
+  total: number[]
+}
 interface Hg {
   heads: { total: number; inApproved: number; notInPlan: number; elsewhere: number; onLeave: number }
   approvedNow: number
@@ -1285,8 +1298,11 @@ interface Hg {
   history: Record<'q1' | 'q2', HgHistory>
   ahead: Record<'q3' | 'q4', HgAhead>
   months: HgMonth[]
-  /** The forecast months: the forecast's starts as hires, known plus modeled exits as exits. */
+  /** The months ahead: future starts (signed offers by start month, C37) as hires, known plus modeled exits as exits. */
   forecastMonths: { month: Month; hires: number; exits: number }[]
+  /** Approved internal moves into the scope that have not started, by the year end (C37). */
+  movesIn: number
+  recent: HgRecent
   paces: {
     hires3: number
     hires6: number
@@ -1330,7 +1346,42 @@ function hgCompute(d: Datasets, scope: HgScope, flows: HgFlows): Hg {
   const A = (end: string) => seats.filter((x) => x.firstHeadDay <= end).length
   const startsBy = (x: HgSeat, end: string) => !!x.offer && x.offer.start > AS_OF && x.offer.start <= end
   const S = (end: string) => seats.filter((x) => startsBy(x, end)).length
-  const O = (end: string) => A(end) - H - S(end)
+  // Moves into the scope that have not started (C37): an assignment in a seat in scope dated after
+  // the as-of date that is no hire, of someone employed on the as-of date, and an approved move the
+  // HRIS has not recorded (a held seat's On hold row with the receiving seat's Filled row, from one
+  // request). They are their own term, M(q).
+  // Where each employee sits on the as-of date (null: not in plan).
+  const seatNow = new Map<string, string | null>()
+  for (const w of d.workers)
+    if (hgEmployee(w) && hgActive(w, AS_OF)) seatNow.set(w.employeeId, w.positionId || null)
+  const outside = (id: string) => {
+    const at = seatNow.get(id)
+    return at !== undefined && !(at && scope.positions.has(at))
+  }
+  const moveDays = d.workers
+    .filter(
+      (w) =>
+        hgEmployee(w) &&
+        !!w.positionId &&
+        scope.positions.has(w.positionId) &&
+        hgStart(w) > AS_OF &&
+        hgStart(w) !== w.hireDate &&
+        outside(w.employeeId),
+    )
+    .map((w) => hgStart(w))
+  const heldByRequest = new Set(
+    d.positions.filter((r) => r.status === 'On hold' && !!r.sourceRequestId).map((r) => r.sourceRequestId),
+  )
+  for (const r of d.positions)
+    if (
+      r.status === 'Filled' &&
+      r.sourceRequestId &&
+      heldByRequest.has(r.sourceRequestId) &&
+      scope.positions.has(r.positionId)
+    )
+      if (r.effectiveDate > AS_OF) moveDays.push(r.effectiveDate)
+  const M = (end: string) => moveDays.filter((x) => x <= end).length
+  const O = (end: string) => A(end) - H - S(end) - M(end)
   // Hires into a seat in scope (the row whose assignment starts on the hire date) and exits from one
   // (the row that holds the last day): internal moves are neither (H14).
   const hireRows = d.workers.filter(
@@ -1346,6 +1397,31 @@ function hgCompute(d: Datasets, scope: HgScope, flows: HgFlows): Hg {
   )
   const lastDay = (w: WorkerRow) => w.terminationDate as ISODate
   const inSpan = (v: string, from: string, to: string) => v >= from && v <= to
+  // The last 3 closed months' hires by the department and location of the seat on the hire date.
+  const rowsOf = hgRows(d)
+  const recent: HgRecent = {
+    pairs: new Map(),
+    departments: new Map(),
+    locations: new Map(),
+    total: [0, 0, 0],
+  }
+  const bump = (map: Map<string, number[]>, key: string, i: number) => {
+    const list = map.get(key) ?? [0, 0, 0]
+    list[i]++
+    map.set(key, list)
+  }
+  for (const w of hireRows) {
+    const i = HG_RECENT.indexOf(w.hireDate.slice(0, 7) as Month)
+    if (i < 0) continue
+    const list = rowsOf.get(w.positionId as string) ?? []
+    const row = hgRowOn(list, w.hireDate) ?? list[0]
+    const dept = row?.department || 'No department'
+    const loc = row?.location || 'No location'
+    bump(recent.pairs, `${dept}|${loc}`, i)
+    bump(recent.departments, dept, i)
+    bump(recent.locations, loc, i)
+    recent.total[i]++
+  }
   const headsAt = (day: string) => {
     const ids = new Set<string>()
     for (const w of d.workers)
@@ -1425,11 +1501,15 @@ function hgCompute(d: Datasets, scope: HgScope, flows: HgFlows): Hg {
     months,
     forecastMonths: HG_OPEN.map((month) => ({
       month,
-      hires: flows.get(month)?.starts ?? 0,
+      // Future starts: the signed offers starting in the month (whole people), never the forecast's starts.
+      hires: seats.filter((x) => !!x.offer && x.offer.start > AS_OF && x.offer.start.slice(0, 7) === month)
+        .length,
       exits:
         exitRows.filter((w) => lastDay(w).slice(0, 7) === month).length +
         (flows.get(month)?.modeledExits ?? 0),
     })),
+    movesIn: M(HG_FY_END),
+    recent,
     paces,
     openFyEnd,
     acceptedToCome: S(HG_FY_END),
@@ -1469,6 +1549,20 @@ const HG_PINS = {
     exits: [1, 6, 5, 3, 1, 3, 5, 2, 2, 4, 3, 1],
     heads12: [534, 531, 534, 536, 542, 546, 546, 551, 551, 551, 554, 556],
     monthsToClose: 23.4,
+    futureStarts: [3, 3, 3, 0, 0, 0],
+    recent: {
+      total: [2, 8, 3],
+      pairs: 10,
+      departments: {
+        'Analog & Mixed-Signal': 3,
+        Architecture: 1,
+        DFT: 1,
+        'Design Verification': 4,
+        'Digital Design': 1,
+        'Physical Design': 3,
+      },
+      locations: { Bengaluru: 3, 'Ho Chi Minh City': 1, Hsinchu: 1, Munich: 4, 'San Jose': 4 },
+    },
   },
   'leader-svp-se': {
     heads: { total: 555, inApproved: 555, notInPlan: 0, elsewhere: 0, onLeave: 7 },
@@ -1479,6 +1573,20 @@ const HG_PINS = {
     exits: [1, 6, 5, 3, 1, 3, 5, 2, 2, 4, 3, 1],
     heads12: [533, 530, 533, 535, 541, 545, 545, 550, 550, 550, 553, 555],
     monthsToClose: 23.4,
+    futureStarts: [3, 3, 3, 0, 0, 0],
+    recent: {
+      total: [2, 8, 3],
+      pairs: 10,
+      departments: {
+        'Analog & Mixed-Signal': 3,
+        Architecture: 1,
+        DFT: 1,
+        'Design Verification': 4,
+        'Digital Design': 1,
+        'Physical Design': 3,
+      },
+      locations: { Bengaluru: 3, 'Ho Chi Minh City': 1, Hsinchu: 1, Munich: 4, 'San Jose': 4 },
+    },
   },
   'finance-fpa': {
     heads: { total: 1456, inApproved: 1450, notInPlan: 6, elsewhere: 0, onLeave: 20 },
@@ -1489,6 +1597,40 @@ const HG_PINS = {
     exits: [11, 14, 13, 13, 11, 7, 11, 11, 13, 14, 12, 5],
     heads12: [1416, 1412, 1417, 1419, 1423, 1438, 1440, 1441, 1443, 1447, 1452, 1456],
     monthsToClose: 49.5,
+    futureStarts: [8, 8, 6, 0, 0, 0],
+    recent: {
+      total: [11, 19, 9],
+      pairs: 31,
+      departments: {
+        'Analog & Mixed-Signal': 3,
+        Architecture: 1,
+        DFT: 1,
+        'Design Verification': 4,
+        'Digital Design': 1,
+        'Field Applications': 1,
+        Firmware: 1,
+        'Hardware Engineering': 2,
+        'Physical Design': 3,
+        'Product Marketing': 4,
+        'Quality & Reliability': 2,
+        Sales: 5,
+        Software: 4,
+        'Supply Chain': 3,
+        'Systems Validation': 2,
+        'Test & Product Engineering': 2,
+      },
+      locations: {
+        Austin: 3,
+        Bengaluru: 5,
+        'Ho Chi Minh City': 1,
+        Hsinchu: 3,
+        Munich: 4,
+        'San Jose': 15,
+        Seattle: 1,
+        Shanghai: 6,
+        Toronto: 1,
+      },
+    },
   },
   'manager-a': {
     heads: { total: 7, inApproved: 7, notInPlan: 0, elsewhere: 0, onLeave: 0 },
@@ -1499,6 +1641,8 @@ const HG_PINS = {
     exits: Array(12).fill(0),
     heads12: Array(12).fill(7),
     monthsToClose: null,
+    futureStarts: [0, 0, 0, 0, 0, 0],
+    recent: { total: [0, 0, 0], pairs: 0, departments: {}, locations: {} },
   },
 } as const
 type HgCase = keyof typeof HG_PINS
@@ -1587,7 +1731,7 @@ describe('Plan > Hiring on the sample, by independent code (9.7, C36)', () => {
           [approved, accepted, open, newToHire, known, monthsLeft],
         )
         expect(a.modeled, `${c.who} ${k} modeled`).toBeCloseTo(modeled, 4)
-        // The user's formula, and the reconciliations 9.7 gives it.
+        // The user's formula, and the reconciliations 9.7 gives it (no move in on the sample, C37).
         expect(a.open, `${c.who} ${k}`).toBe(a.approved - mine.heads.total - a.accepted)
         expect(a.open, `${c.who} ${k}`).toBe(a.openSeats.length - mine.heads.notInPlan - mine.heads.elsewhere)
         expect(a.exits, `${c.who} ${k}`).toBe(a.known + a.modeled)
@@ -1622,6 +1766,32 @@ describe('Plan > Hiring on the sample, by independent code (9.7, C36)', () => {
       expect(p.attrition, c.who).toBe(sum(pin.exits) / (sum(pin.heads12) / 12))
       if (pin.monthsToClose === null) expect(mine.monthsToClose, c.who).toBeNull()
       else expect(mine.monthsToClose, c.who).toBeCloseTo(pin.monthsToClose, 9)
+      // C37: the months ahead's future starts, whole people, add up to the future starts by the year end.
+      expect(
+        mine.forecastMonths.map((m) => m.hires),
+        c.who,
+      ).toEqual([...pin.futureStarts])
+      expect(sum(pin.futureStarts), c.who).toBe(mine.acceptedToCome)
+      // No move into any of the four scopes on the sample: M(q) is 0, so O(q) = A(q) − H − S(q).
+      expect(mine.movesIn, c.who).toBe(0)
+      // The last 3 closed months' hires by department and location: the totals are those months'
+      // hires, and the sub-totals add up both ways.
+      const r = mine.recent
+      expect(r.total, c.who).toEqual([...pin.recent.total])
+      expect(r.total, c.who).toEqual(pin.hires.slice(-3))
+      expect(r.pairs.size, c.who).toBe(pin.recent.pairs)
+      expect(Object.fromEntries([...r.departments].map(([k, v]) => [k, sum(v)])), c.who).toEqual(
+        pin.recent.departments,
+      )
+      expect(Object.fromEntries([...r.locations].map(([k, v]) => [k, sum(v)])), c.who).toEqual(
+        pin.recent.locations,
+      )
+      for (const map of [r.departments, r.locations])
+        for (const i of [0, 1, 2])
+          expect(
+            [...map.values()].reduce((a, v) => a + v[i], 0),
+            c.who,
+          ).toBe(r.total[i])
     }
     // Every quarter ahead is behind its needed pace at the 3-month hiring pace, by the gap (H7).
     for (const c of CASES)
@@ -1692,10 +1862,36 @@ describe('Plan > Hiring on the sample, by independent code (9.7, C36)', () => {
       ).toEqual(mine.months.map((x) => [x.hires, x.exits, x.hires - x.exits]))
       v.slice(12).forEach((r, i) => {
         const f = mine.forecastMonths[i]
-        expect(r.hires, `${c.who} ${r.month}`).toBeCloseTo(f.hires, 9)
+        // Future starts are whole people: the count of signed offers, exactly (C37).
+        expect(r.hires, `${c.who} ${r.month}`).toBe(f.hires)
         expect(r.exits, `${c.who} ${r.month}`).toBeCloseTo(f.exits, 9)
         expect(r.net, `${c.who} ${r.month}`).toBeCloseTo(f.hires - f.exits, 9)
       })
+      // No move in: the quarter table has no Moves in row (it shows only when not 0, C37).
+      expect(row('moves'), c.who).toBeUndefined()
+      // Hires in the last 3 months, by location and department (C37), row for row.
+      const rec = m.recent.rows
+      expect(m.recentMonths, c.who).toEqual(HG_RECENT)
+      const cellsOf = (kind: string) =>
+        Object.fromEntries(
+          rec
+            .filter((x) => x.kind === kind)
+            .map((x) => [
+              kind === 'pair'
+                ? `${x.department}|${x.location}`
+                : kind === 'department'
+                  ? x.department
+                  : x.location,
+              [x.m1, x.m2, x.m3],
+            ]),
+        )
+      expect(cellsOf('pair'), c.who).toEqual(Object.fromEntries(mine.recent.pairs))
+      expect(cellsOf('department'), c.who).toEqual(Object.fromEntries(mine.recent.departments))
+      expect(cellsOf('location'), c.who).toEqual(Object.fromEntries(mine.recent.locations))
+      const totalRow = rec.find((x) => x.kind === 'total')
+      expect([totalRow?.m1, totalRow?.m2, totalRow?.m3], c.who).toEqual(mine.recent.total)
+      // The total is the velocity's hires in those months.
+      expect(mine.recent.total, c.who).toEqual(v.slice(9, 12).map((x) => x.hires))
       // The six tiles.
       const tile = (id: string) => m.kpis.find((k) => k.id === id)?.value
       expect(

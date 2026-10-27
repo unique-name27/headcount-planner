@@ -92,7 +92,12 @@ describe('the crawl reads Plan > Hiring from its own model (9.7, reading H10)', 
         c.seen.some((x) => x.where === 'view plan/tab hiring.kpis/tile hiring-open.value'),
         mode,
       ).toBe(true)
-      for (const id of ['plan-hiring-quarters', 'plan-hiring-open', 'plan-hiring-velocity'])
+      for (const id of [
+        'plan-hiring-quarters',
+        'plan-hiring-open',
+        'plan-hiring-velocity',
+        'plan-hiring-recent',
+      ])
         expect(c.figures.has(id), `${mode} ${id}`).toBe(true)
       // Narrowed to the tab: nothing of another tab is read.
       expect(

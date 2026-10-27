@@ -144,6 +144,8 @@ metric:plan.hiring.netPace                 S    S     S     S    S
 metric:plan.hiring.attritionRate           S    S     S     S    S
 metric:plan.hiring.neededPace              S    S     S     S    S
 metric:plan.hiring.monthsToClose           S    S     S     S    S
+metric:plan.hiring.movesIn                 S    S     S     S    S
+metric:plan.hiring.recentHires             S    S     S     S    S
 metric:requests.queue.open                 S    S     S     S    S
 metric:requests.queue.waiting              S    S     S     S    S
 metric:requests.queue.sentBack             S    S     S     S    S
@@ -433,6 +435,7 @@ figure:plan-hiring-kpis                    S    S     S     S    S
 figure:plan-hiring-quarters                S    S     S     S    S
 figure:plan-hiring-open                    S    S     S     S    S
 figure:plan-hiring-velocity                S    S     S     S    S
+figure:plan-hiring-recent                  S    S     S     S    S
 figure:plan-hiring-readout                 S    S     S     S    S
 figure:team-open-to-hire                   H    H     H     H    S
 kpi:hiring-open                            S    S     S     S    S

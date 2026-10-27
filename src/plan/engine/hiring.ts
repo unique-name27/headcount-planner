@@ -1,6 +1,6 @@
 /**
- * Hiring progress (docs/PLAN.md 9.7, change C36): how much is left to hire by each quarter end of the
- * fiscal year shown, and how fast hires and exits move. Pure, heads only.
+ * Hiring progress (docs/PLAN.md 9.7, changes C36 and C37): how much is left to hire by each quarter
+ * end of the fiscal year shown, and how fast hires and exits move. Pure, heads only.
  *
  * The user's formula, per quarter end q of the fiscal year shown (FY27: Q1 Apr to Jun, Q2 Jul to Sep,
  * Q3 Oct to Dec, Q4 Jan to Mar), all heads, in scope, at the as-of date unless a quarter end is named:
@@ -11,11 +11,17 @@
  *    ends before the fiscal year end (H2) and the seats whose accepted start falls after it (H22).
  *  - `H` current heads: active employees at the as-of date (on leave included, "Not in plan"
  *    included), split into people in approved seats and people not in plan.
- *  - `S(q)` accepted starts by the quarter end: accepted offers on approved seats, not started, whose
- *    start date is after the as-of date and on or before the quarter's end. Dates only.
- *  - `O(q) = A(q) − H − S(q)`, open to hire; negative is over plan. The seat view reconciles it:
- *    `O(q)` = open seats by the quarter end (not Filled, no accepted start counted in `S(q)`) − not
- *    in plan (when every Filled approved seat has one holder; `HiringHeads.elsewhere` says when not).
+ *  - `S(q)` future starts by the quarter end (C37): people with a signed offer (req at Offer
+ *    accepted, not started) on approved seats whose start date is after the as-of date and on or
+ *    before the quarter's end. Only signed offers count: no forecast or modeled start, and no Open or
+ *    Planned seat without a signed offer. Dates only.
+ *  - `M(q)` moves in by the quarter end (C37): approved internal moves into the scope that have not
+ *    started, by their move date (after the as-of date, on or before the quarter's end). They are not
+ *    future starts.
+ *  - `O(q) = A(q) − H − S(q) − M(q)`, open to hire; negative is over plan. The seat view reconciles
+ *    it: `O(q)` = open seats by the quarter end (not Filled, no future start in `S(q)` and no move in
+ *    `M(q)` on it) − not in plan (when every Filled approved seat has one holder;
+ *    `HiringHeads.elsewhere` says when not).
  *  - New to hire in the quarter `O(q) − O(q−1)` for the quarters ahead. The first one counts against
  *    open to hire on the day before it starts, which is `openNow` (approved heads at the as-of date
  *    less current heads) whenever that day is not after the as-of date; for a later fiscal year
@@ -31,7 +37,8 @@
  * exits (last day in the month, from a seat in scope) for the trailing 12 closed months; paces over
  * the last 3 and 6 closed months; attrition = exits over the last 12 closed months ÷ the average of
  * the heads at those month-ends; months to close = `O(FY end)` ÷ the 3-month net pace when it is
- * above 0.
+ * above 0. The months ahead to the fiscal year end show the future starts (signed offers by start
+ * month, whole people; never a forecast or modeled start, C37) and the expected exits.
  *
  * Quarters ending on or before the last close's month-end are history (actual heads at the quarter
  * end, hires and exits); every other quarter is ahead (the formula above). Engines round nothing:
@@ -63,6 +70,12 @@
  *    is over with a month still open is history but not closed (labelled "ended", not "closed").
  *  - New to hire's first quarter ahead counts against O on the day before that quarter starts, or
  *    against open now when that day is on or before the as-of date (review HN-4).
+ *  - C37: a move in is no future start. It takes its seat from its date as a signed offer does (the
+ *    tab sets the seat's `acceptedStart`, H2), so the seat view leaves it out of the open seats; a
+ *    move in on a seat that is not open counts in the seat view's `otherStarts` with the offers. A
+ *    month ahead's hires are its future starts: no forecast start is an input (`HiringForecastMonth`
+ *    holds modeled exits only), so the months ahead add up to S(FY end) when they run from the
+ *    as-of date to the year end.
  */
 import { fyRange, monthEnd, monthKey, monthRange, monthStart, monthsOf, shiftMonth } from '@/data/fiscal'
 import type { FiscalYear, ISODate, Month } from '@/data/schema'
@@ -105,6 +118,17 @@ export interface HiringOffer {
 }
 
 /**
+ * One approved internal move into the scope that has not started (C37, `M(q)`): approved and not yet
+ * in the HRIS, or dated ahead in the HRIS, into an approved seat in scope from outside it. Its ID,
+ * the receiving seat and the move date only. An addition to the contract.
+ */
+export interface HiringMove {
+  moveId: string
+  positionId: string
+  startDate: ISODate
+}
+
+/**
  * A hire (on = the hire date, the seat the person was hired into) or an exit (on = the last day, the
  * seat they held on it), in scope. Internal moves and transfers are neither. Exits after the as-of
  * date are the known exits ahead.
@@ -121,11 +145,12 @@ export interface HiringHeadsAt {
   heads: number
 }
 
-/** One open month of the forecast to the fiscal year end, in heads only (no cost part). */
+/**
+ * One open month of the forecast to the fiscal year end, in heads only (no cost part): its modeled
+ * exits. No forecast start reaches the engine (C37): the months ahead show signed offers only.
+ */
 export interface HiringForecastMonth {
   month: Month
-  /** Probability-weighted starts in the month (accepted offers count 1). */
-  starts: number
   /** Every modeled exit in the month (both cohorts, 6.7). Known exits come from `HiringInput.exits`. */
   modeledExits: number
 }
@@ -138,7 +163,10 @@ export interface HiringInput {
   lastClose: Month | null
   seats: readonly HiringSeat[]
   people: readonly HiringPerson[]
+  /** Signed offers not started (S(q)'s people). */
   offers: readonly HiringOffer[]
+  /** Approved internal moves into the scope not started (M(q), C37). */
+  moves: readonly HiringMove[]
   hires: readonly HiringEvent[]
   exits: readonly HiringEvent[]
   headsAt: readonly HiringHeadsAt[]
@@ -157,6 +185,7 @@ export const HIRING_INPUT_KEYS = {
     'seats',
     'people',
     'offers',
+    'moves',
     'hires',
     'exits',
     'headsAt',
@@ -165,9 +194,10 @@ export const HIRING_INPUT_KEYS = {
   seat: ['positionId', 'filled', 'acceptedStart', 'plannedStart', 'lastApprovedDay'],
   person: ['personId', 'positionId'],
   offer: ['reqId', 'positionId', 'startDate'],
+  move: ['moveId', 'positionId', 'startDate'],
   event: ['personId', 'positionId', 'on'],
   headsAt: ['month', 'heads'],
-  forecast: ['month', 'starts', 'modeledExits'],
+  forecast: ['month', 'modeledExits'],
 } as const
 
 type Exactly<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false
@@ -179,10 +209,20 @@ export const HIRING_INPUT_KEYS_EXACT: {
   seat: Exactly<keyof HiringSeat, Keys<'seat'>>
   person: Exactly<keyof HiringPerson, Keys<'person'>>
   offer: Exactly<keyof HiringOffer, Keys<'offer'>>
+  move: Exactly<keyof HiringMove, Keys<'move'>>
   event: Exactly<keyof HiringEvent, Keys<'event'>>
   headsAt: Exactly<keyof HiringHeadsAt, Keys<'headsAt'>>
   forecast: Exactly<keyof HiringForecastMonth, Keys<'forecast'>>
-} = { input: true, seat: true, person: true, offer: true, event: true, headsAt: true, forecast: true }
+} = {
+  input: true,
+  seat: true,
+  person: true,
+  offer: true,
+  move: true,
+  event: true,
+  headsAt: true,
+  forecast: true,
+}
 
 /* ───────────── constants ───────────── */
 
@@ -263,7 +303,10 @@ export interface HiringSeatView {
   /** People in an approved seat that is out of `A(q)`: it stops being an approved head before the quarter end (an approved Elimination, Trade or move out). */
   inEndedSeats: number
   inEndedSeatIds: readonly string[]
-  /** Accepted starts in `S(q)` on a seat that is not one of the quarter's unfilled seats in `A(q)`. */
+  /**
+   * Future starts in `S(q)` and moves in `M(q)` on a seat that is not one of the quarter's unfilled
+   * seats in `A(q)` (req IDs and move IDs).
+   */
   otherStarts: number
   otherStartIds: readonly string[]
   /** What is left: a Filled seat in `A(q)` with no holder counted, or a second holder or offer on one seat. */
@@ -283,12 +326,15 @@ export interface HiringQuarter extends HiringQuarterFrame {
   /** A(q). */
   approved: number | null
   approvedIds: readonly string[]
-  /** S(q), by req ID. */
+  /** S(q), future starts (signed offers), by req ID. */
   accepted: number | null
   acceptedIds: readonly string[]
-  /** O(q) = A(q) − H − S(q); negative is over plan. */
+  /** M(q), moves in (C37), by move ID. An addition to the contract. */
+  movesIn: number | null
+  moveInIds: readonly string[]
+  /** O(q) = A(q) − H − S(q) − M(q); negative is over plan. */
   open: number | null
-  /** The seat view: approved seats by the quarter end, not Filled and with no accepted start in S(q). */
+  /** The seat view: approved seats by the quarter end, not Filled and with no future start in S(q) or move in M(q). */
   openSeats: number | null
   openSeatIds: readonly string[]
   /** O(q) − O(q−1), the first quarter ahead against `HiringTable.openNow`. */
@@ -324,23 +370,31 @@ export interface HiringTable {
   quarters: readonly HiringQuarter[]
   /** O(FY end): the headline `plan.hiring.open`. */
   openFyEnd: number
-  /** S(FY end): `plan.hiring.acceptedStarts`'s key figure. */
+  /** S(FY end): `plan.hiring.acceptedStarts`'s key figure (Future starts). */
   acceptedToCome: number
+  /** M(FY end): the moves in to come (C37). An addition to the contract. */
+  movesToCome: number
 }
 
-/** One month of the velocity chart: a closed month's actual hires and exits, or a forecast month's starts and expected exits. */
+/**
+ * One month of the velocity chart: a closed month's actual hires and exits, or a month ahead's
+ * future starts (signed offers by start month, whole people, C37) and expected exits.
+ */
 export interface HiringMonth {
   month: Month
+  /** 'actual': a closed month; 'forecast': a month ahead (its exits are the forecast's). */
   kind: 'actual' | 'forecast'
-  /** Actual hires, or the forecast's expected starts. */
+  /** Actual hires, or the future starts in the month (never a forecast start). */
   hires: number
   /** Actual exits, or known + modeled exits expected in the month. */
   exits: number
   /** hires − exits. */
   net: number
-  /** The people counted (actual months; known exits in forecast months). */
+  /** The people counted (actual months; known exits in months ahead). */
   hireIds: readonly string[]
   exitIds: readonly string[]
+  /** A month ahead's future starts, by req ID (empty for a closed month). An addition to the contract. */
+  startIds?: readonly string[]
 }
 
 /** Paces per month, and attrition in heads. Null where fewer closed months exist than the window needs. */
@@ -503,7 +557,7 @@ function headsOf(places: ReadonlyMap<string, Placed>): HiringHeads {
 const startsIn = (o: HiringOffer, asOf: ISODate, end: ISODate): boolean =>
   o.startDate > asOf && o.startDate <= end
 
-/** S(q)'s req IDs: start date after `asOf` and on or before `end`, one per req. */
+/** S(q)'s req IDs: signed offers whose start date is after `asOf` and on or before `end`, one per req. */
 export function acceptedBy(offers: readonly HiringOffer[], asOf: ISODate, end: ISODate): string[] {
   const seen = new Set<string>()
   const out: string[] = []
@@ -515,7 +569,22 @@ export function acceptedBy(offers: readonly HiringOffer[], asOf: ISODate, end: I
   return out
 }
 
-/** The seat view's seats by `end`: in A(q), not Filled, with no accepted start counted in S(q). */
+/** M(q)'s move IDs (C37): moves in whose date is after `asOf` and on or before `end`, one per move. */
+export function movesBy(moves: readonly HiringMove[], asOf: ISODate, end: ISODate): string[] {
+  return acceptedBy(movesAsStarts(moves), asOf, end)
+}
+
+/** Moves in in the shape of a start, so the seat view takes their seats as it takes an offer's. */
+const movesAsStarts = (moves: readonly HiringMove[]): HiringOffer[] =>
+  moves.map((m) => ({ reqId: m.moveId, positionId: m.positionId, startDate: m.startDate }))
+
+/** Every start that takes a seat: the signed offers, then the moves in (each under its own ID). */
+const startsOf = (input: HiringInput): HiringOffer[] => [...input.offers, ...movesAsStarts(input.moves)]
+
+/**
+ * The seat view's seats by `end`: in A(q), not Filled, with no start counted by then among `offers`
+ * (`hiringTable` passes the signed offers and the moves in, so a seat a move takes is not open).
+ */
 export function openSeatsBy(
   seats: readonly HiringSeat[],
   offers: readonly HiringOffer[],
@@ -594,6 +663,8 @@ function blankQuarter(frame: HiringQuarterFrame): HiringQuarter {
     approvedIds: [],
     accepted: null,
     acceptedIds: [],
+    movesIn: null,
+    moveInIds: [],
     open: null,
     openSeats: null,
     openSeatIds: [],
@@ -611,10 +682,11 @@ function blankQuarter(frame: HiringQuarterFrame): HiringQuarter {
 /** The seat view's terms for a quarter ahead (`HiringSeatView`). */
 function seatViewOf(
   input: HiringInput,
+  starts: readonly HiringOffer[],
   places: ReadonlyMap<string, Placed>,
   heads: HiringHeads,
   approvedIds: readonly string[],
-  acceptedReqs: readonly string[],
+  startIds: readonly string[],
   openSeatIds: readonly string[],
   open: number,
 ): HiringSeatView {
@@ -624,11 +696,11 @@ function seatViewOf(
     if (place === 0 && seat != null && !inA.has(seat)) inEndedSeatIds.push(id)
   const unfilledInA = new Set<string>()
   for (const s of input.seats) if (!s.filled && inA.has(s.positionId)) unfilledInA.add(s.positionId)
-  // Each req of S(q) once, read from its first offer (`delete` is true only the first time).
-  const reqs = new Set(acceptedReqs)
+  // Each start of S(q) and M(q) once, read from its first record (`delete` is true only the first time).
+  const ids = new Set(startIds)
   const otherStartIds: string[] = []
-  for (const o of input.offers)
-    if (reqs.delete(o.reqId) && !unfilledInA.has(o.positionId)) otherStartIds.push(o.reqId)
+  for (const o of starts)
+    if (ids.delete(o.reqId) && !unfilledInA.has(o.positionId)) otherStartIds.push(o.reqId)
   const openSeats = openSeatIds.length
   const explained =
     openSeats - heads.notInPlan - heads.elsewhere - inEndedSeatIds.length - otherStartIds.length
@@ -645,13 +717,14 @@ function seatViewOf(
 }
 
 /**
- * The quarter table: H, open now, each quarter's column, O(FY end) and S(FY end). History columns
+ * The quarter table: H, open now, each quarter's column, O(FY end), S(FY end) and M(FY end). History columns
  * carry the heads at the quarter end (when `headsAt` has that month) and the quarter's hires and
  * exits; columns ahead carry 9.7's rows, new to hire counting the first one against `openNow` (H4),
  * and the needed pace against `pace3`.
  */
 export function hiringTable(input: HiringInput, pace3: number | null): HiringTable {
-  const { asOf, seats, offers } = input
+  const { asOf, seats, offers, moves } = input
+  const starts = startsOf(input)
   const frames = hiringQuarters(input.fiscalYear, asOf, input.lastClose)
   const places = placesOf(input.people, new Set(seats.map((s) => s.positionId)))
   const heads = headsOf(places)
@@ -672,7 +745,8 @@ export function hiringTable(input: HiringInput, pace3: number | null): HiringTab
             open:
               approvedBy(seats, asOf, dayBefore).length -
               heads.total -
-              acceptedBy(offers, asOf, dayBefore).length,
+              acceptedBy(offers, asOf, dayBefore).length -
+              movesBy(moves, asOf, dayBefore).length,
           }
         : { on: asOf, open: openNow }
   }
@@ -693,8 +767,9 @@ export function hiringTable(input: HiringInput, pace3: number | null): HiringTab
     }
     const approvedIds = approvedBy(seats, asOf, frame.end)
     const acceptedIds = acceptedBy(offers, asOf, frame.end)
-    const open = approvedIds.length - heads.total - acceptedIds.length
-    const openSeatIds = openSeatsBy(seats, offers, asOf, frame.end)
+    const moveInIds = movesBy(moves, asOf, frame.end)
+    const open = approvedIds.length - heads.total - acceptedIds.length - moveInIds.length
+    const openSeatIds = openSeatsBy(seats, starts, asOf, frame.end)
     const exits = expectedExits(input.exits, input.forecast, asOf, frame.end)
     const toReachPlan = open + exits.total
     const months = monthsLeft(asOf, frame.end)
@@ -708,6 +783,8 @@ export function hiringTable(input: HiringInput, pace3: number | null): HiringTab
       approvedIds,
       accepted: acceptedIds.length,
       acceptedIds,
+      movesIn: moveInIds.length,
+      moveInIds,
       open,
       openSeats: openSeatIds.length,
       openSeatIds,
@@ -718,10 +795,20 @@ export function hiringTable(input: HiringInput, pace3: number | null): HiringTab
       neededPace: needed,
       paceStatus: pace.status,
       behindBy: pace.behindBy,
-      seatView: seatViewOf(input, places, heads, approvedIds, acceptedIds, openSeatIds, open),
+      seatView: seatViewOf(
+        input,
+        starts,
+        places,
+        heads,
+        approvedIds,
+        [...acceptedIds, ...moveInIds],
+        openSeatIds,
+        open,
+      ),
     }
   })
   const last = quarters[quarters.length - 1]
+  const ahead = last.kind === 'ahead'
   return {
     fiscalYear: input.fiscalYear,
     asOf,
@@ -729,8 +816,9 @@ export function hiringTable(input: HiringInput, pace3: number | null): HiringTab
     openNow,
     openBefore,
     quarters,
-    openFyEnd: last.kind === 'ahead' ? (last.open ?? 0) : 0,
-    acceptedToCome: last.kind === 'ahead' ? (last.accepted ?? 0) : 0,
+    openFyEnd: ahead ? (last.open ?? 0) : 0,
+    acceptedToCome: ahead ? (last.accepted ?? 0) : 0,
+    movesToCome: ahead ? (last.movesIn ?? 0) : 0,
   }
 }
 
@@ -741,10 +829,20 @@ export function closedMonths(lastClose: Month | null, n: number): Month[] {
 }
 
 /**
+ * The future starts of a month ahead (C37): signed offers whose start date falls in the month and
+ * after the as-of date (one on it or before has started), one per req, in input order. Whole people:
+ * a forecast or modeled start never counts, nor an Open or Planned seat without a signed offer.
+ */
+export function futureStartsIn(offers: readonly HiringOffer[], asOf: ISODate, month: Month): string[] {
+  const dayBefore = addDays(monthStart(month), -1)
+  return acceptedBy(offers, dayBefore > asOf ? dayBefore : asOf, monthEnd(month))
+}
+
+/**
  * The velocity months: the trailing 12 closed months (actual hires and exits, by the month of the
  * hire date and the last day), then the forecast's open months after the last close to the fiscal
- * year end (H15: its expected starts as hires; the known exits in the month plus its modeled exits as
- * exits).
+ * year end: their future starts as hires (signed offers by start month, whole people, C37; never the
+ * forecast's starts) and the known exits in the month plus its modeled exits as exits.
  */
 export function hiringMonths(input: HiringInput): HiringMonth[] {
   const hires = eventsByMonth(input.hires)
@@ -771,14 +869,16 @@ export function hiringMonths(input: HiringInput): HiringMonth[] {
     seen.add(f.month)
     const exitIds = exits.get(f.month) ?? []
     const expected = exitIds.length + f.modeledExits
+    const startIds = futureStartsIn(input.offers, input.asOf, f.month)
     out.push({
       month: f.month,
       kind: 'forecast',
-      hires: f.starts,
+      hires: startIds.length,
       exits: expected,
-      net: f.starts - expected,
+      net: startIds.length - expected,
       hireIds: [],
       exitIds,
+      startIds,
     })
   }
   return out

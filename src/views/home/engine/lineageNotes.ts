@@ -289,7 +289,7 @@ export const HOME_LINEAGE_NOTES: Readonly<Record<string, readonly LineageNote[]>
   /*
    * Plan > Hiring's Open to hire (9.7; its lineage is the tab's, src/views/plan/engine/lineage.ts
    * `hiringOpen`) on Unit plan and Rollup vs target: approved seats with a first head day by the
-   * fiscal year end, less current heads and the accepted starts due by then.
+   * fiscal year end, less current heads and the future starts due by then.
    */
   'hiring-open': [START, END, KIND, ELIMINATED_END, PLANNED_START_IN_YEAR, REQ_AS_OF],
   'year-end-heads': [

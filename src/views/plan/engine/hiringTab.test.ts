@@ -21,7 +21,7 @@ import { buildDrillTable } from '@/drill/records'
 import { type DrillSource, type DrillSpec, resolveDrill } from '@/drill/types'
 import { moneyOpts } from '@/lib/export/columns'
 import { csvField, toCsv } from '@/lib/export/csv'
-import { HIRING_INPUT_KEYS } from '@/plan/engine/hiring'
+import { HIRING_INPUT_KEYS, hiringOf } from '@/plan/engine/hiring'
 import { fromRow } from '@/plan/engine/requests'
 import { amountsIn, cellsOf, isAmountKey } from '@/testkit/leaks'
 import { withoutRequest, withPlan, withReq, withSalaryDelta, withWorker } from '@/testkit/sample'
@@ -40,6 +40,7 @@ import {
   hiringInputOf,
   hiringOpenLabel,
   NOT_CLOSING_TEXT,
+  ONLY_WHEN_NOT_ZERO,
   type PlanHiring,
   planHiringModel,
   QUARTER_KEYS,
@@ -80,7 +81,7 @@ function reach(m: PlanHiring): Reached {
     addDrill(`finding ${f.id}`, f.drill)
     addCard(`finding ${f.id}`, f.calc, undefined)
   }
-  for (const fig of [m.quarters, m.openByQuarter, m.velocity] as const) {
+  for (const fig of [m.quarters, m.openByQuarter, m.velocity, m.recent] as const) {
     const cols = fig.columns as readonly Column[]
     for (const r of fig.rows as readonly Record<string, unknown>[])
       for (const c of cols) {
@@ -310,6 +311,7 @@ describe('heads only', () => {
           m.quarters.uses,
           m.openByQuarter.uses,
           m.velocity.uses,
+          m.recent.uses,
         ].flat(),
       )
       for (const ref of uses)
@@ -539,7 +541,7 @@ describe('the needed-pace note', () => {
   })
 })
 
-describe('the Accepted starts card', () => {
+describe('the Future starts card', () => {
   it('writes a plain count: "1 offer", "2 offers"', () => {
     const m = planHiringModel(sampleCtx('manager', { persona: 'manager-b' }))
     const card = resolveCalc(tile(m, 'hiring-accepted')?.calc as never)
@@ -578,7 +580,7 @@ describe('over plan', () => {
     expect(m.openByQuarter.rows.find((r) => r.key === 'q4')?.note).toBe('Over by 1')
     expect(tile(m, 'hiring-open')?.note).toBe('Over by 1')
     expect(m.findings.find((f) => f.id === 'hiring-over')?.title).toBe(
-      'Over by 1 at FY27 end: current heads and accepted starts are above approved heads.',
+      'Over by 1 at FY27 end: current heads and future starts are above approved heads.',
     )
     // Nothing to hire: to reach plan is below 0, so no needed pace reads as a target.
     expect(row(m, 'needed')?.notes.q4).toBe('Nothing to hire')
@@ -664,9 +666,14 @@ describe('the model', () => {
 
   it('has the ten rows of 9.7, closed quarters greyed by kind and filled only where the row reads them', () => {
     const m = planHiringModel(sampleCtx('finance'))
-    expect(m.quarters.rows.map((r) => r.key)).toEqual(HIRING_ROWS.map((r) => r.key))
+    // Moves in by quarter end shows only when a quarter ahead holds one (C37): none on the sample.
+    expect(m.quarters.rows.map((r) => r.key)).toEqual(
+      HIRING_ROWS.filter((r) => !ONLY_WHEN_NOT_ZERO.has(r.key)).map((r) => r.key),
+    )
+    expect(m.quarters.rows).toHaveLength(10)
+    expect(row(m, 'moves')).toBeUndefined()
     expect(m.openByQuarter.rows.map((r) => r.kind)).toEqual(['history', 'history', 'ahead', 'ahead'])
-    for (const def of HIRING_ROWS) {
+    for (const def of HIRING_ROWS.filter((r) => !ONLY_WHEN_NOT_ZERO.has(r.key))) {
       const r = row(m, def.key)
       for (const [i, k] of QUARTER_KEYS.entries()) {
         const history = i < 2
@@ -724,7 +731,7 @@ describe('the model', () => {
       const words = wordsOf({
         kpis: m.kpis.map((k) => ({ label: k.label, note: k.note, formula: k.formula })),
         findings: m.findings.map((f) => ({ title: f.title, detail: f.detail, positions: f.positions })),
-        figures: [m.quarters, m.openByQuarter, m.velocity].map((f) => ({
+        figures: [m.quarters, m.openByQuarter, m.velocity, m.recent].map((f) => ({
           title: f.title,
           subtitle: f.subtitle,
           note: f.note,
@@ -756,7 +763,7 @@ describe('exports', () => {
     (mode) => {
       const ctx = sampleCtx(mode)
       const m = planHiringModel(ctx)
-      for (const fig of [m.quarters, m.openByQuarter, m.velocity]) {
+      for (const fig of [m.quarters, m.openByQuarter, m.velocity, m.recent]) {
         const csv = toCsv({ columns: fig.columns as never, rows: fig.rows as never }, moneyOpts(ctx))
         const lines = csv
           .replace(/^\uFEFF/, '')
@@ -779,4 +786,304 @@ describe('exports', () => {
       expect(quarters).toMatch(/Q3: (On pace|Behind by (\d+\.\d|less than 0\.1) a month|Nothing to hire)\./)
     },
   )
+})
+
+/* ───────────── change C37 ───────────── */
+
+/** The req IDs of the signed offers (accepted, not started) the tab reads, by start month, after the as-of date. */
+function signedOffersByMonth(ctx: AnalyticsContext): Map<string, string[]> {
+  const h = hiringPrepOf(ctx)
+  const out = new Map<string, string[]>()
+  for (const o of h.input.offers) {
+    if (o.startDate <= ctx.asOf) continue
+    const m = o.startDate.slice(0, 7)
+    const list = out.get(m) ?? []
+    if (!list.includes(o.reqId)) list.push(o.reqId)
+    out.set(m, list)
+  }
+  return out
+}
+
+describe('future starts are signed offers only (C37)', () => {
+  it.each(CASES.map((c) => [c.name, c] as const))(
+    'count signed offers by start date, and the months ahead show them in whole people (%s)',
+    (_, c) => {
+      const ctx = sampleCtx(c.mode, c.opts)
+      const h = hiringPrepOf(ctx)
+      const m = planHiringModel(ctx)
+      // Every future start is a req at Offer accepted, not started, starting after the as-of date.
+      for (const id of hiringOf(h.input).table.quarters.flatMap((q) => q.acceptedIds)) {
+        const req = h.offers.get(id)
+        expect(req?.stage, `${c.name} ${id}`).toBe('Offer accepted')
+        expect((req?.startDate ?? '') > ctx.asOf, `${c.name} ${id}`).toBe(true)
+        expect(id.startsWith('move:'), id).toBe(false)
+      }
+      // The months ahead: each one's hires are the signed offers starting in it, whole people.
+      const byMonth = signedOffersByMonth(ctx)
+      const ahead = m.velocity.rows.filter((r) => r.kind === 'forecast')
+      expect(ahead.length, c.name).toBeGreaterThan(0)
+      for (const r of ahead) {
+        expect(r.hires, `${c.name} ${r.month}`).toBe(byMonth.get(r.month)?.length ?? 0)
+        expect(Number.isInteger(r.hires), `${c.name} ${r.month}`).toBe(true)
+      }
+      // They add up to the Future starts tile: every signed offer of the year is in a month ahead.
+      expect(
+        ahead.reduce((a, r) => a + r.hires, 0),
+        c.name,
+      ).toBe(tile(m, 'hiring-accepted')?.value)
+      expect(tile(m, 'hiring-accepted')?.label).toBe('Future starts')
+      expect(row(m, 'accepted')?.label).toBe('Future starts by quarter end')
+    },
+  )
+
+  it('never read a modeled start: the forecast’s own starts differ, and none reaches the input', () => {
+    const ctx = sampleCtx('hr-admin')
+    const m = planHiringModel(ctx)
+    expect([...HIRING_INPUT_KEYS.forecast]).toEqual(['month', 'modeledExits'])
+    for (const f of hiringInputOf(ctx).forecast)
+      expect(Object.keys(f).sort()).toEqual(['modeledExits', 'month'])
+    // Control: the forecast models starts the tab never shows (Open and Planned seats at their fill rates).
+    const flows = forecastFlows(forecastPrepare(ctx))
+    const ahead = m.velocity.rows.filter((r) => r.kind === 'forecast')
+    const modeled = ahead.reduce((a, r) => a + (flows.get(r.month)?.starts ?? 0), 0)
+    const signed = ahead.reduce((a, r) => a + r.hires, 0)
+    expect(modeled).toBeGreaterThan(signed + 1)
+    // January to March hold planned and target starts, and no signed offer: no hire ahead.
+    for (const r of ahead.filter((x) => x.month >= '2027-01')) {
+      expect(r.hires, r.month).toBe(0)
+      expect(flows.get(r.month)?.starts ?? 0, r.month).toBeGreaterThan(0)
+    }
+    // No forecast or expected start reads anywhere in the tab's words.
+    const texts = textsOf(ctx, m)
+    expect(texts.filter((t) => /expected starts?|accepted starts?/i.test(t)).slice(0, 3)).toEqual([])
+    expect(m.velocity.columns.find((c) => c.key === 'hires')?.label).toBe('Hires (future starts ahead)')
+  })
+
+  it('never count an Open or Planned seat without a signed offer', () => {
+    for (const c of CASES) {
+      const ctx = sampleCtx(c.mode, c.opts)
+      const h = hiringPrepOf(ctx)
+      const t = hiringOf(h.input).table
+      const starting = new Set(
+        t.quarters.flatMap((q) => q.acceptedIds).map((id) => h.offers.get(id)?.positionId),
+      )
+      for (const seat of h.input.seats)
+        if (!seat.filled && !seat.acceptedStart)
+          expect(starting.has(seat.positionId), seat.positionId).toBe(false)
+    }
+  })
+
+  it('opens a month ahead’s future starts as their signed offers, dates only', () => {
+    const ctx = sampleCtx('hrbp')
+    const m = planHiringModel(ctx)
+    const r = m.velocity.rows.find((x) => x.kind === 'forecast' && x.hires > 0)
+    expect(r).toBeTruthy()
+    const hires = m.velocity.columns.find((c) => c.key === 'hires')
+    const spec = resolveDrill(hires?.drill?.(r as never) as DrillSource) as DrillSpec
+    expect(spec.kind).toBe('reqs')
+    expect(spec.rows).toHaveLength(r?.hires ?? -1)
+    expect(spec.title).toBe(`Future starts, ${r?.label}`)
+    for (const key of HIRING_DRILL_HIDE.reqs) expect(spec.hide).toContain(key)
+    // A closed month's hires still open the people hired.
+    const closed = m.velocity.rows.find((x) => x.kind === 'actual' && x.hires > 0)
+    expect(resolveDrill(hires?.drill?.(closed as never) as DrillSource)?.kind).toBe('workers')
+  })
+})
+
+describe('hires in the last 3 months, by location and department (C37)', () => {
+  const sum = (xs: readonly number[]) => xs.reduce((a, b) => a + b, 0)
+  const KEYS = ['m1', 'm2', 'm3', 'total'] as const
+
+  it.each(CASES.map((c) => [c.name, c] as const))(
+    'adds up: pairs to departments and to locations, both to the total, the total to the velocity (%s)',
+    (_, c) => {
+      const ctx = sampleCtx(c.mode, c.opts)
+      const m = planHiringModel(ctx)
+      const f = m.recent
+      expect(f.id).toBe('plan-hiring-recent')
+      expect(f.metric).toBe(ID.hiringRecentHires)
+      expect(f.title).toBe('Hires in the last 3 months, by location and department')
+      // The last 3 closed months, the velocity's.
+      const last3 = m.velocity.rows.filter((r) => r.kind === 'actual').slice(-3)
+      expect(m.recentMonths, c.name).toEqual(last3.map((r) => r.month))
+      expect(
+        f.columns.map((col) => col.label),
+        c.name,
+      ).toEqual(['Department', 'Location', ...last3.map((r) => r.label), 'Total', 'Hires per month'])
+      const of = (kind: string) => f.rows.filter((r) => r.kind === kind)
+      const total = of('total')
+      expect(total, c.name).toHaveLength(1)
+      expect([total[0].m1, total[0].m2, total[0].m3], c.name).toEqual(last3.map((r) => r.hires))
+      expect(total[0].perMonth, c.name).toBe(total[0].total / 3)
+      expect(total[0].perMonth, c.name).toBeCloseTo(tile(m, 'hiring-pace')?.value as number, 12)
+      for (const r of f.rows) {
+        expect(r.total, `${c.name} ${r.key}`).toBe(r.m1 + r.m2 + r.m3)
+        expect(r.perMonth, `${c.name} ${r.key}`).toBe(r.total / 3)
+      }
+      // One row per department and location with a hire.
+      for (const r of of('pair')) expect(r.total, `${c.name} ${r.key}`).toBeGreaterThan(0)
+      expect(new Set(of('pair').map((r) => `${r.department}|${r.location}`)).size).toBe(of('pair').length)
+      for (const k of KEYS) {
+        for (const d of of('department'))
+          expect(
+            sum(
+              of('pair')
+                .filter((r) => r.department === d.department)
+                .map((r) => r[k]),
+            ),
+            `${c.name} ${d.key} ${k}`,
+          ).toBe(d[k])
+        for (const l of of('location'))
+          expect(
+            sum(
+              of('pair')
+                .filter((r) => r.location === l.location)
+                .map((r) => r[k]),
+            ),
+            `${c.name} ${l.key} ${k}`,
+          ).toBe(l[k])
+        expect(sum(of('department').map((r) => r[k])), `${c.name} departments ${k}`).toBe(total[0][k])
+        expect(sum(of('location').map((r) => r[k])), `${c.name} locations ${k}`).toBe(total[0][k])
+      }
+      // Each department's rows, then its sub-total; the locations' sub-totals; the total last.
+      expect(f.rows.at(-1)?.kind).toBe('total')
+      const firstLocation = f.rows.findIndex((r) => r.kind === 'location')
+      if (firstLocation >= 0)
+        expect(
+          f.rows.slice(firstLocation, -1).every((r) => r.kind === 'location'),
+          c.name,
+        ).toBe(true)
+      expect(f.empty, c.name).toBe(
+        total[0].total ? null : `No hire in ${last3[0].label} to ${last3[2].label}.`,
+      )
+    },
+  )
+
+  it.each(CASES.map((c) => [c.name, c] as const))(
+    'opens the hires each count counts, as workers or (Manager mode) the seats hired into (%s)',
+    (_, c) => {
+      const ctx = sampleCtx(c.mode, c.opts)
+      const m = planHiringModel(ctx)
+      const f = m.recent
+      const manager = c.mode === 'manager'
+      for (const r of f.rows)
+        for (const col of f.columns.filter((x) => ['m1', 'm2', 'm3', 'total'].includes(x.key))) {
+          const v = r[col.key as 'm1']
+          const spec = resolveDrill(col.drill?.(r) as DrillSource) as DrillSpec
+          expect(spec, `${c.name} ${r.key} ${col.key}`).toBeTruthy()
+          expect(spec.kind, `${c.name} ${r.key} ${col.key}`).toBe(manager ? 'positions' : 'workers')
+          if (spec.weight) expect(weightSum(spec as never), `${r.key} ${col.key}`).toBeCloseTo(v, 9)
+          else expect(spec.rows.length, `${c.name} ${r.key} ${col.key}`).toBe(v)
+          for (const key of HIRING_DRILL_HIDE[spec.kind as HiringDrillKind]) expect(spec.hide).toContain(key)
+        }
+      // Hires per month opens its card: the 3 months' sum ÷ 3, its records each a third.
+      for (const r of f.rows) {
+        const card = resolveCalc(f.columns.find((x) => x.key === 'perMonth')?.calc?.(r) as never) as CalcSpec
+        expect(card.value, r.key).toBe(r.perMonth)
+        expect(card.metricId).toBe(ID.hiringPace)
+        expect(calcProblems(card), r.key).toEqual([])
+      }
+    },
+  )
+
+  it('files each hire under the department and location of the seat on its hire date, from the raw rows', () => {
+    for (const c of CASES.filter((x) => x.mode !== 'manager')) {
+      const ctx = sampleCtx(c.mode, c.opts)
+      const f = planHiringModel(ctx).recent
+      const s = sample()
+      const rows = [...s.datasets.positions, ...s.plan.overlay.positions].sort((a, b) =>
+        a.effectiveDate < b.effectiveDate ? -1 : a.effectiveDate > b.effectiveDate ? 1 : 0,
+      )
+      const placeOf = (positionId: string, day: string) => {
+        const mine = rows.filter((r) => r.positionId === positionId)
+        const on = mine.filter((r) => r.effectiveDate <= day).at(-1) ?? mine[0]
+        return [on?.department || 'No department', on?.location || 'No location']
+      }
+      let checked = 0
+      for (const r of f.rows.filter((x) => x.kind === 'pair')) {
+        const col = f.columns.find((x) => x.key === 'total')
+        const spec = resolveDrill(col?.drill?.(r) as DrillSource) as DrillSpec
+        for (const w of spec.rows as readonly { positionId: string; hireDate: string }[]) {
+          expect(placeOf(w.positionId, w.hireDate), `${c.name} ${r.key}`).toEqual([r.department, r.location])
+          checked++
+        }
+      }
+      expect(checked, c.name).toBe(f.rows.find((x) => x.kind === 'total')?.total)
+    }
+  })
+
+  it('Managers A, B and C: no hire in July to September, so the total row alone, with its words', () => {
+    for (const persona of ['manager-a', 'manager-b', 'manager-c'] as const) {
+      const m = planHiringModel(sampleCtx('manager', { persona }))
+      expect(
+        m.recent.rows.map((r) => [r.kind, r.total]),
+        persona,
+      ).toEqual([['total', 0]])
+      expect(m.recent.empty, persona).toBe('No hire in Jul 2026 to Sep 2026.')
+    }
+  })
+
+  it('Manager A with a hire in August: the seat hired into, under its department and location', () => {
+    const s = sample()
+    const ctx0 = sampleCtx('manager')
+    const open = hiringPrepOf(ctx0).input.seats.find((x) => !x.filled && !x.acceptedStart) as {
+      positionId: string
+    }
+    expect(open).toBeTruthy()
+    const a = s.personas.find((p) => p.key === 'manager-a')?.employeeId ?? null
+    const template = s.datasets.workers.find((w) => w.managerId === a && w.positionId) as NonNullable<
+      (typeof s.datasets.workers)[number]
+    >
+    const hired = withData(
+      {
+        workers: [
+          ...s.datasets.workers,
+          {
+            ...template,
+            employeeId: 'E99100',
+            name: 'Planted Hire',
+            positionId: open.positionId,
+            hireDate: '2026-08-03',
+            assignmentStart: null,
+            assignmentEnd: null,
+            terminationDate: null,
+          },
+        ],
+      },
+      s,
+    )
+    const ctx = sampleCtx('manager', { sample: hired })
+    const m = planHiringModel(ctx)
+    const pairs = m.recent.rows.filter((r) => r.kind === 'pair')
+    expect(pairs).toHaveLength(1)
+    expect([pairs[0].m1, pairs[0].m2, pairs[0].m3, pairs[0].total]).toEqual([0, 1, 0, 1])
+    const pos = s.datasets.positions.filter((r) => r.positionId === open.positionId).at(-1)
+    expect([pairs[0].department, pairs[0].location]).toEqual([
+      pos?.department || 'No department',
+      pos?.location,
+    ])
+    const spec = resolveDrill(
+      m.recent.columns.find((x) => x.key === 'm2')?.drill?.(pairs[0]) as DrillSource,
+    ) as DrillSpec
+    expect(spec.kind).toBe('positions')
+    expect((spec.rows as readonly { positionId: string }[]).map((r) => r.positionId)).toEqual([
+      open.positionId,
+    ])
+    // Manager mode lists no people records: every count of the figure, and every card's records, opens seats.
+    const kinds = reach(m)
+      .drills.filter((d) => d.where.startsWith('plan-hiring-recent'))
+      .map((d) => d.spec.kind)
+    expect(kinds.length).toBeGreaterThanOrEqual(m.recent.rows.length * 4)
+    expect(new Set(kinds)).toEqual(new Set(['positions']))
+    // The total row is the velocity's August.
+    expect(m.recent.rows.at(-1)?.m2).toBe(m.velocity.rows.find((r) => r.month === '2026-08')?.hires)
+  })
+
+  it('shows nothing to add up before a month is closed (control: the sample has 3)', () => {
+    const none = planHiringModel(sampleCtx('hr-admin', { sample: withPlan(sample(), { closes: [] }) }))
+    expect(none.recentMonths).toEqual([])
+    expect(none.recent.rows).toEqual([])
+    expect(none.recent.empty).toBe('The last 3 months show once 3 months are closed.')
+    expect(planHiringModel(sampleCtx('hr-admin')).recentMonths).toEqual(['2026-07', '2026-08', '2026-09'])
+  })
 })

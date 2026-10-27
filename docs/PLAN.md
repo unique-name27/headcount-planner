@@ -1735,11 +1735,15 @@ ones are ahead.
   as in R1.
 - **Current heads** `H`: actual heads at the as-of date (glossary: active HRIS employees, on leave
   included, "Not in plan" included). Shown with its split: in approved seats, and not in plan.
-- **Accepted starts by quarter end** `S(q)`: accepted offers (req stage Offer accepted, not Started) on
-  approved seats whose start date is after the as-of date and on or before the quarter's end. Date-only
-  facts; no offer amounts anywhere. An internal move into the scope that has not started (approved and
-  not yet in the HRIS, or dated ahead in the HRIS) counts here too, as a start that is not an offer.
-- **Open to hire by quarter end** `O(q) = A(q) − H − S(q)`. This is the user's formula. Its card also
+- **Future starts by quarter end** `S(q)` (C37): people with a signed offer (req stage Offer accepted,
+  not Started) on approved seats whose start date is after the as-of date and on or before the quarter's
+  end. Only signed offers count: no forecast or modeled start, no Open or Planned seat without a signed
+  offer. Date-only facts; no offer amounts anywhere.
+- **Moves in by quarter end** `M(q)` (C37): approved internal moves into the scope that have not started
+  (approved and not yet in the HRIS, or dated ahead in the HRIS), by their move date. They are not future
+  starts; the row shows only when it is not 0.
+- **Open to hire by quarter end** `O(q) = A(q) − H − S(q) − M(q)`. This is the user's formula (the moves
+  term shows only when it is not 0). Its card also
   shows the seat view: approved seats by the quarter end that are not Filled and carry no accepted offer
   (Open with no accepted offer + Planned), and the reconciling line "n people not in plan count against
   approved heads", so `O(q)` = open seats − not in plan. `O(q)` can be negative (over plan): it reads
@@ -1777,27 +1781,34 @@ ones are ahead.
 #### Screen (Plan > Hiring)
 
 1. KPI strip (five to seven tiles): Open to hire this fiscal year (`plan.hiring.open`, the headline:
-   R1 approved heads − current heads − accepted starts to come = O(FY end)), Accepted starts to come
-   (`plan.hiring.acceptedStarts`),
+   R1 approved heads − current heads − future starts = O(FY end)), Future starts (`plan.hiring.acceptedStarts`,
+   signed offers starting after the as-of date),
    Hires per month, 3-month pace (`plan.hiring.pace`), Exits per month, 3-month pace (`plan.hiring.exitPace`),
    Net hiring pace (`plan.hiring.netPace`), Months to close at this pace (`plan.hiring.monthsToClose`).
    Each opens a calculation card with the formula and the inputs (Census card pattern).
 2. **Open to hire by quarter** (figure `plan-hiring-quarters`): a table, one column per quarter of the
    fiscal year (history quarters greyed with their actual heads at the quarter end and their hires and
-   exits), rows: Approved heads by quarter end, Current heads (as of), Accepted starts by quarter end,
-   Open to hire, New to hire in the quarter, Expected exits by quarter end, To hire to reach plan, Hires
+   exits), rows: Approved heads by quarter end, Current heads (as of), Future starts by quarter end,
+   Moves in by quarter end (only when not 0), Open to hire, New to hire in the quarter, Expected exits by quarter end, To hire to reach plan, Hires
    needed per month, plus a small bar chart of open to hire by quarter. Drill: each count opens its
    records (seats, people, offers) under the mode's drill rules (Manager: positions and date-only offer
    columns).
 3. **Hiring velocity** (figure `plan-hiring-velocity`): monthly hires and exits for the trailing 12
-   closed months as bars (hires up, exits down) with the net line, then the forecast months to FY end
-   (forecast starts and expected exits) in a lighter style; a pace note under it.
+   closed months as bars (hires up, exits down) with the net line, then the months ahead to FY end in a
+   lighter style: future starts (signed offers by their start month, whole people; never a forecast
+   start) and expected exits; a pace note under it.
+3b. **Hires in the last 3 months, by location and department** (figure `plan-hiring-recent`, C37): the
+   hires of the last 3 closed months (as `plan.hires.ytd` counts a hire), one row per department and
+   location that had a hire, with a column per month, the total and the hires per month; sub-totals by
+   location and by department (the scope's departments are its groups) and a total that equals the 3
+   months' hires in the velocity figure. Each count opens the hires it counts under the mode's drill
+   rules. Heads only.
 4. Readout (findings, Census style, 0 to 3): e.g. "Exits outpace hires over the last 3 months", "At the
    3-month pace, open to hire closes in 7 months, after FY end", "12 openings are past their target start".
 
 Homes: the HRBP Unit plan, Leader Rollup and Manager My team homes gain one tile, Open to hire
 (`plan.hiring.open`, "Open to hire, FY27"), linking to Plan > Hiring (Manager's My team: under Left to fill, with the note
-that Left to fill counts seats while Open to hire subtracts current heads and accepted starts). The
+that Left to fill counts seats while Open to hire subtracts current heads and future starts). The
 Finance home does not change. Keep each home's KPI count rule (5 to 7).
 
 #### Privacy
@@ -1815,7 +1826,9 @@ plan.hiring.approvedByQuarter, plan.hiring.currentHeads (alias of plan.heads.act
 plan.hiring.open, plan.hiring.openByQuarter, plan.hiring.newByQuarter,
 plan.hiring.expectedExits, plan.hiring.toReachPlan, plan.hiring.hiresByMonth, plan.hiring.exitsByMonth,
 plan.hiring.pace, plan.hiring.exitPace, plan.hiring.netPace, plan.hiring.attritionRate,
-plan.hiring.neededPace, plan.hiring.monthsToClose. Units int, num1 (paces, months), pct1 (attrition).
+plan.hiring.neededPace, plan.hiring.monthsToClose; C37 adds plan.hiring.movesIn (the Moves in row) and
+plan.hiring.recentHires (figure `plan-hiring-recent`; its hires per month read plan.hiring.pace). Units
+int, num1 (paces, months), pct1 (attrition).
 
 #### Fixtures and sample checks
 
@@ -1824,17 +1837,76 @@ plan.hiring.neededPace, plan.hiring.monthsToClose. Units int, num1 (paces, month
   Q4, 1 person not in plan; as-of in Q2. A(Q3) = 8, H = 7, S(Q3) = 1, O(Q3) = 0; A(Q4) = 10, S(Q4) = 1,
   O(Q4) = 2; seat view: 3 open seats − 1 not in plan = 2. Velocity: hires 3, 1, 0 and exits 0, 1, 1 in the
   last 3 closed months: pace 1.33, exit pace 0.67, net 0.67; months to close 3.0. Headline open to hire
-  (FY) = 2; O(Q2) = 6 − 7 − 0 = −1 reads "Over by 1" (the person not in plan).
+  (FY) = 2; O(Q2) = 6 − 7 − 0 = −1 reads "Over by 1" (the person not in plan). C37: the accepted offer is
+  a signed offer, so S(q) is unchanged and M(q) = 0 in every quarter (no move in); the months ahead,
+  September to March, show future starts 0, 1, 0, 0, 0, 0, 0 (the signed offer in October), never the
+  forecast's modeled starts of the Open seat with no offer or the two Planned seats.
+- Fixture HG8 (C37, hand-computed): moves in. 6 approved seats at FY end, 2 Filled (one whose holder
+  leaves 31 Jan 2027 and a move in takes it on 1 Feb), 1 Open a move in takes on 2 Nov (Q3), 1 Open with a
+  signed offer starting 7 Dec (Q3), 1 Planned a move in takes on 1 Feb (Q4), 1 Planned with neither;
+  as-of 30 Sep 2026. O(Q3) = 4 − 2 − 1 − 1 = 0; O(Q4) = 6 − 2 − 1 − 3 = 0, the seat view 1 open seat − 1
+  move in on a seat that is not open = 0; without the moves O(Q4) = 3; the months ahead's future starts
+  are 0, 0, 1, 0, 0, 0 (no move is ever a future start).
 - Sample: sample.test.ts pins Plan > Hiring for Silicon Engineering (HRBP), Chun-Hsien Kuo's org (Leader),
   the whole company (Finance) and Sebastian Wagner's team (Manager): every row of the quarter table and
   the paces, computed by independent code from raw rows in the test, and consistent with Openings (open
-  seats), My team (left to fill) and the forecast (expected exits).
+  seats), My team (left to fill) and the forecast (expected exits). Since C37 also the months ahead's
+  future starts (SE and the leader's org 3, 3, 3, 0, 0, 0; the company 8, 8, 6, 0, 0, 0; Manager A none),
+  no move in, and the hires of July to September by department and location (SE 2, 8, 3 over 10
+  department and location rows; the company 11, 19, 9 over 31; Manager A none), each sub-total by
+  department and by location.
 
 #### Help
 
-view-plan gains a Hiring section; the glossary gains Open to hire, Accepted start, Hiring pace, Net hiring
+view-plan gains a Hiring section; the glossary gains Open to hire, Future start (C37; "Accepted start"
+before: a person with a signed offer who has not started yet, by start date), Hiring pace, Net hiring
 pace and Attrition (heads); the view-plan tour gains a step on the quarter table (the tour stays 4 to 6
-steps per mode). Copy: "Open to hire", never "headcount to hire"; plain counts.
+steps per mode, so C37's table of recent hires gets no step of its own; the Hiring section names it). Copy: "Open to hire", never "headcount to hire"; plain counts.
+
+
+### 9.8 Recruiting summary (Plan > Recruiting summary, change C38)
+
+**Status: designed 26 Oct 2026, not built yet.** The tab, its policy row (`tab:plan.recruiting`, S in every
+mode) and its place in 9.1's Plan tabs (after hiring) are added when it is built.
+
+User request, 26 Oct 2026: "one simple view i can show the head of recruiting that shows current approved,
+future starts, projected starts, projected attrition and hiring velocity".
+
+A Plan tab `recruiting` ("Recruiting summary"), after Hiring, shown in every mode over the mode's scope
+(heads only, like 9.7; policy `tab:plan.recruiting` S everywhere, Manager's how "Your team, in heads").
+It is one screen with no sub-tabs, built to be shown: big numbers first, one chart, one small table, and
+a one-slide export. It reuses 9.7's engine; no number here is computed differently from Plan > Hiring.
+
+1. **Seven numbers** (KPI strip, each with its calculation card), for the fiscal year shown:
+   - **Approved heads**: R1 approved heads (as 9.7's A at FY end).
+   - **Current heads**: actual heads at the as-of date (9.7's H).
+   - **Open to hire**: 9.7's O(FY end).
+   - **Future starts**: people with a signed offer starting after the as-of date by FY end (9.7's S, C37).
+   - **Projected starts**: the forecast's starts to FY end on approved Open and Planned seats with no signed
+     offer (6.7: fill rate, time to fill, backfills), one decimal, labelled "model". Never mixed with
+     future starts.
+   - **Projected attrition**: 9.7's E(FY end) (known plus modeled exits to FY end, one decimal), with the
+     annual attrition rate (heads) under it.
+   - **Hiring velocity**: hires per month, 3-month pace, with the 6-month pace and the last 3 months'
+     hires under it.
+2. **One chart, "Heads and hiring by month"** (figure `plan-recruiting-months`): for the last 12 closed
+   months, actual hires (up) and exits (down) as bars and actual heads as a line; for the months ahead to
+   FY end, future starts and projected starts stacked up (projected in a lighter style), projected exits
+   down, and projected heads (current heads + future starts + projected starts − projected exits) as a
+   dashed line; approved heads as a flat reference line.
+3. **One small table, "By quarter ahead"** (figure `plan-recruiting-quarters`): per quarter ahead, approved
+   heads by the quarter end, future starts, projected starts, projected exits, projected heads at the
+   quarter end and the gap to approved heads (projected heads − approved, "short by n" or "over by n").
+4. **Where hiring happened** (figure `plan-recruiting-where`): the top 5 locations and top 5 departments by
+   hires over the last 3 closed months (from 9.7's C37 figure), with "and n more" and a link to Plan >
+   Hiring for the full table.
+5. **Export**: the tab's deck export is one slide (title, scope, as-of, the seven numbers, the chart) after
+   the "About these numbers" slide; image and CSV per figure as elsewhere.
+
+Words: "Future starts" (signed offers) and "Projected starts" (the model) are always apart and named that
+way; "Projected attrition" for expected exits on this tab. Privacy as 9.7 (heads only; 8.4; Manager mode
+uses the tree's own cohort for modeled exits and starts). Help: view-plan gains a Recruiting summary
+section; the view-plan tour may point at the tab.
 
 ---
 
@@ -2878,6 +2950,8 @@ and `lib/export/` together because each imports the other's types. M4 adds the f
 | C34 | The bridge's shape (which rows show, which steps fold, whether Other changes shows) never reads leave in any mode: folds read only leave-neutral contributor facts (R44) and are decided the same way in every scope, so flipping anyone's leave between paid and unpaid leaves every bridge's rows identical. | With leave-neutral contributors, a step whose only costed move was a leave still folded into Other changes and pulled in a shown step, so in HRBP and Leader mode a row appeared or vanished when one person's leave turned unpaid, against C26 (M2 report, known gap 3). |
 | C35 | Full files encode each locked version's line table by column (one array per field, the amount columns as integer cents, heads, FTE, active share and rates exact); the earlier all-exact and row forms still read. The import limit is 25 MB for Shareable and Requests files ("This file is larger than 25 MB, the most a Shareable or Requests file can be. Nothing was imported.") and 150 MB for Full files ("This file is larger than 150 MB, the most a Full file can be. Nothing was imported."). Replace from a Full file whose audit chain verifies, its own audit head included, replaces this workspace's audit log with the file's (`PlanStore.replaceAudit`, Browser and Memory stores, in the same commit as the state), then appends one "workspace replaced" entry; a file whose chain breaks is refused with its first broken link ("This file's audit log breaks at entry n. Nothing was imported."). Merge keeps this workspace's log. | The sample's Full file is about 19 MB and each lock adds about 7 MB, so 5.5's 25 MB limit refused a Full file after one more lock; and a Replace that kept the old log left the restored workspace's history out of step with its plan state (M3 integration). On the sample the Full file is now 14.2 MB, and 24.4 MB after two more locks. |
 | C36 | Plan gains a Hiring tab (9.7): open to hire by quarter = approved heads by the quarter end − current heads − accepted starts by the quarter end, with expected exits, hires needed per month, and hiring velocity from actual hires and exits (paces, attrition, months to close); an Open to hire tile on the HRBP, Leader and Manager homes. | Added at the user's request on 24 Oct 2026, before ship: a module that tracks headcount progress via hiring by quarter, and hiring velocity from hires and attrition. |
+| C37 | In Plan > Hiring, "accepted starts" and the velocity figure's "expected starts" become **Future starts**: people with a signed offer, by start date, and nothing else (no forecast or modeled start). Approved internal moves into the scope that have not started become their own row, Moves in, so the formula stays exact. Hiring velocity adds the hires of the last 3 closed months by location and department. The Forecast view's modeled starts are unchanged. | The user, 26 Oct 2026: "for expected starts, only call it future starts, and only include people that have signed offers. make sure to add hiring velocity by including the number of hires into that location and group over the last 3 months." |
+| C38 | Planned, not built yet: Plan gains a Recruiting summary tab (9.8): one screen with approved heads, current heads, open to hire, future starts (signed offers), projected starts (the forecast model, kept apart), projected attrition and hiring velocity, one chart by month, one table by quarter ahead, where hiring happened, and a one-slide export. | The user, 26 Oct 2026: "one simple view i can show the head of recruiting that shows current approved future starts projected starts projected attrition and hiring velocity". |
 
 ### 15.3 Accepted risks (repeated in README where they concern users)
 

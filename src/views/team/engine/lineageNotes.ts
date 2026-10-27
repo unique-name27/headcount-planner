@@ -149,7 +149,7 @@ export const TEAM_LINEAGE_NOTES: Readonly<Record<string, readonly LineageNote[]>
   /*
    * Plan > Hiring's Open to hire beside the hero (9.7; its lineage is the tab's, src/views/plan/engine/
    * lineage.ts `hiringOpen`): approved seats with a first head day by the fiscal year end, less current
-   * heads and the accepted starts due by then, for the probed teams.
+   * heads and the future starts due by then, for the probed teams.
    */
   'hiring-open': [START, END, KIND, ELIMINATED_END, PLANNED_START_IN_YEAR, REQ_AS_OF],
 }

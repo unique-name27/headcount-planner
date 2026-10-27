@@ -300,7 +300,7 @@ describe('the seat view in words adds up to open to hire (HN-1, HU-11, HU-13)', 
     const team = teamModel(managerA(backfill)).openToHire
     expect(team?.value).toBe(1)
     expect(noteValue(team?.note ?? ''), team?.note).toBe(1)
-    expect(team?.note).toMatch(/^2 open seats less 1 accepted start on a seat that is not open\./)
+    expect(team?.note).toMatch(/^2 open seats less 1 future start on a seat that is not open\./)
   })
 
   it('names what is left (a second holder on one seat) instead of a balancing term', () => {
@@ -563,11 +563,33 @@ describe('an internal move across scopes reads in each scope as it will once the
     expect(tile(planHiringModel(se), 'hiring-open')?.value).toBe(39)
     const gtm = planHiringModel(hrbp(GTM, ahead))
     expect(tile(gtm, 'hiring-open')?.value).toBe(29)
-    // The move in is an accepted start that is not an offer: its card counts it.
-    const accepted = cardOf(tile(gtm, 'hiring-accepted')?.calc)
-    expect(accepted.steps[0].expression).toBe('4 offers + 1 move')
-    expect(calcProblems(accepted)).toEqual([])
-    expect(cellDrill(gtm, 'accepted', 'q4')).toBeNull()
+    // C37: the move in is no future start. Future starts are the 4 signed offers, which they list;
+    // the move is its own row, Moves in by quarter end, and opens the seat it takes.
+    const future = cardOf(tile(gtm, 'hiring-accepted')?.calc)
+    expect(future.steps[0].expression).toBe('4 offers')
+    expect(calcProblems(future)).toEqual([])
+    expect(tile(gtm, 'hiring-accepted')?.value).toBe(4)
+    expect((cellDrill(gtm, 'accepted', 'q4') as DrillSpec).rows).toHaveLength(4)
+    expect(row(gtm, 'moves')?.q4).toBe(1)
+    expect(row(gtm, 'moves')?.q3).toBe(1)
+    const moved = cellDrill(gtm, 'moves', 'q4') as DrillSpec
+    expect(moved.kind).toBe('positions')
+    expect((moved.rows as readonly { positionId: string }[]).map((r) => r.positionId)).toEqual([
+      m.to.positionId,
+    ])
+    // The open to hire card names the moves' term and step, and works out to its value.
+    const open4 = cellCard(gtm, 'open', 'q4')
+    expect(open4.steps.at(-1)?.label).toBe(
+      'Open to hire = approved heads − current heads − future starts − moves in',
+    )
+    expect(open4.inputs.find((i) => i.label === 'Moves in by the quarter end')?.value).toBe(1)
+    expect(calcProblems(open4)).toEqual([])
+    expect(tile(gtm, 'hiring-open')?.formula).toMatch(/− 4 future starts − 1 move in by then\.$/)
+    // The velocity's months ahead never count the move as a hire: November reads as it does without it.
+    const nov = (x: PlanHiring) => x.velocity.rows.find((r) => r.month === '2026-11')?.hires
+    expect(nov(gtm)).toBe(nov(planHiringModel(hrbp(GTM, s))))
+    // Control: SE, the scope the person leaves, has no move in, so no such row.
+    expect(row(planHiringModel(se), 'moves')).toBeUndefined()
     // The company reads the move as no change.
     expect(tile(planHiringModel(admin(ahead)), 'hiring-open')?.value).toBe(132)
   })

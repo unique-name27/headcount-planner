@@ -531,13 +531,15 @@ export const HIRING_AT = { view: 'plan', tab: 'hiring' } as const
 /**
  * Plan > Hiring's figure ids, in page order (src/views/plan/engine/figures.ts holds them as
  * `PLAN_FIGURES.hiring*`; src/views/hiring.contracts.test.ts keeps the two equal): the key figures,
- * open to hire by quarter (the table), its small bar chart, hiring velocity and the readout.
+ * open to hire by quarter (the table), its small bar chart, hiring velocity, the hires of the last 3
+ * months by location and department (change C37) and the readout.
  */
 export const HIRING_FIGURE_IDS = [
   'plan-hiring-kpis',
   'plan-hiring-quarters',
   'plan-hiring-open',
   'plan-hiring-velocity',
+  'plan-hiring-recent',
   'plan-hiring-readout',
 ] as const
 

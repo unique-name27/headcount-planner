@@ -34,8 +34,10 @@ export const PLAN_FIGURES = {
   hiringQuarters: 'plan-hiring-quarters',
   /** Its small bar chart of open to hire by quarter. */
   hiringOpen: 'plan-hiring-open',
-  /** Hiring velocity: hires up, exits down, the net line, then the forecast months to FY end. */
+  /** Hiring velocity: hires up, exits down, the net line, then future starts and expected exits to FY end. */
   hiringVelocity: 'plan-hiring-velocity',
+  /** Hires in the last 3 months, by location and department (change C37). */
+  hiringRecent: 'plan-hiring-recent',
   hiringReadout: 'plan-hiring-readout',
 } as const
 export type PlanFigureId = (typeof PLAN_FIGURES)[keyof typeof PLAN_FIGURES]

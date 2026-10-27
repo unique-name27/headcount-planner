@@ -271,11 +271,13 @@ describe('the tables', () => {
   })
 })
 
-describe('Plan > Hiring (9.7, change C36)', () => {
+describe('Plan > Hiring (9.7, changes C36 and C37)', () => {
   it('decides every hiring surface explicitly in every mode, with a sentence on each limited or hidden one', () => {
     const named = new Set(NAMED_SURFACES)
-    // The tab, 5 figures, My team's tile, 6 tiles, 3 drill kinds and 8 dated columns.
-    expect(HIRING_SURFACES.length).toBe(1 + 5 + 1 + 6 + 3 + 8)
+    // The tab, 6 figures (C37 added the hires of the last 3 months by location and department), My
+    // team's tile, 6 tiles, 3 drill kinds and 8 dated columns.
+    expect(HIRING_SURFACES.length).toBe(1 + 6 + 1 + 6 + 3 + 8)
+    expect(HIRING_SURFACES).toContain('figure:plan-hiring-recent')
     expect(new Set(HIRING_SURFACES).size).toBe(HIRING_SURFACES.length)
     for (const s of HIRING_SURFACES) expect(named.has(s), s).toBe(true)
     for (const m of MODES)
@@ -288,7 +290,9 @@ describe('Plan > Hiring (9.7, change C36)', () => {
 
   it('shows every hiring metric in every mode: heads only, so no table hides one', () => {
     const ids = METRIC_IDS.filter((id) => id.startsWith('plan.hiring.'))
-    expect(ids.length).toBe(16)
+    // C36's 16, and C37's Moves in by quarter end and Hires in the last 3 months.
+    expect(ids.length).toBe(18)
+    expect(ids).toEqual(expect.arrayContaining(['plan.hiring.movesIn', 'plan.hiring.recentHires']))
     for (const m of MODES)
       for (const id of ids) {
         expect(decide(m, `metric:${id}`).access, `${m} ${id}`).toBe('shown')

@@ -1,7 +1,8 @@
 /**
- * Hiring velocity (docs/PLAN.md 9.7 screen 3): one column per month, hires up and exits down from the
- * zero line with the net line through them, the trailing closed months in full color and the
- * forecast months to the fiscal year end (expected starts and exits) lighter, their net line dashed.
+ * Hiring velocity (docs/PLAN.md 9.7 screen 3, change C37): one column per month, hires up and exits
+ * down from the zero line with the net line through them, the trailing closed months in full color
+ * and the months ahead to the fiscal year end (future starts, the signed offers by start month, and
+ * expected exits) lighter, their net line dashed. No forecast start is drawn.
  * A bar opens its records or calculation card (the model's own cells), and the keyboard steps
  * through the months, hires and exits alike. Presentation only: every number comes from the model's
  * rows.
@@ -133,7 +134,7 @@ export function HiringVelocityChart({
       { label: 'Net', color: c.net, shape: 'line' },
       ...(firstAhead
         ? [
-            { label: 'Expected starts', color: c.hiresAhead, shape: 'rect' as const },
+            { label: 'Future starts', color: c.hiresAhead, shape: 'rect' as const },
             { label: 'Expected exits', color: c.exitsAhead, shape: 'rect' as const },
           ]
         : []),
@@ -147,15 +148,15 @@ export function HiringVelocityChart({
     <PlotChart<HiringVelocityRow>
       height={height}
       legend={legend}
-      ariaLabel="Hires and exits by month, closed months then the forecast"
+      ariaLabel="Hires and exits by month, closed months then the months ahead"
       tip={(r, part): TipContent => {
         const actual = r.kind === 'actual'
         return {
-          title: `${formatMonth(`${r.month}-01`)}${actual ? '' : ', forecast'}`,
+          title: `${formatMonth(`${r.month}-01`)}${actual ? '' : ', ahead'}`,
           rows: [
             {
-              label: actual ? 'Hires' : 'Expected starts',
-              value: fmt(r.hires, actual ? 'int' : 'num1'),
+              label: actual ? 'Hires' : 'Future starts',
+              value: fmt(r.hires, 'int'),
               color: actual ? c.hires : c.hiresAhead,
               shape: 'rect',
               strong: part === 'hires',

@@ -53,17 +53,27 @@ const NO_NEW_REQUESTS: Condition = { unless: 'tab:requests.new' }
  */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    date: '2026-10-26',
+    title: 'Future starts and recent hires',
+    items: [
+      'Plan > Hiring counts future starts: people with a signed offer who have not started yet, by start date. A forecast or modeled start never counts.',
+      'Approved internal moves into your scope that have not started show as their own row, Moves in by quarter end, when there are any.',
+      'Hiring velocity shows the future starts of each month to the fiscal year end, in whole people, beside the expected exits.',
+      'A new table, Hires in the last 3 months, by location and department: each department and location that had a hire, a column per month, sub-totals by department and by location, and a total that matches the velocity chart.',
+    ],
+  },
+  {
     date: '2026-10-25',
     title: 'Hiring progress',
     items: [
-      'Plan > Hiring: open to hire by quarter (approved heads by each quarter end, less current heads and the accepted starts due by then), expected exits, and the hires needed each month, all in heads.',
+      'Plan > Hiring: open to hire by quarter (approved heads by each quarter end, less current heads and the future starts due by then), expected exits, and the hires needed each month, all in heads.',
       'Hiring velocity: hires and exits in each of the last 12 closed months, the 3-month and 6-month paces, attrition in heads, and the months to close what is open to hire at the net pace.',
       only(
         ROUNDED,
         'Your home’s key figures gain Open to hire for this fiscal year, which opens Plan > Hiring.',
       ),
       only(MANAGER, 'Your home shows Open to hire under Left to fill, and it opens Plan > Hiring.'),
-      'The glossary gains Open to hire, Accepted starts, Hiring pace, Net hiring pace and Attrition (heads), and the Plan tour gains a step on the quarter table.',
+      'The glossary gains Open to hire, Future starts, Hiring pace, Net hiring pace and Attrition (heads), and the Plan tour gains a step on the quarter table.',
     ],
   },
   {

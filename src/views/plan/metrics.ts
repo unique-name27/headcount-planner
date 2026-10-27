@@ -57,13 +57,16 @@ export const ID = {
   hiringAttritionRate: 'plan.hiring.attritionRate',
   hiringNeededPace: 'plan.hiring.neededPace',
   hiringMonthsToClose: 'plan.hiring.monthsToClose',
+  /* Change C37: moves into the scope (their own row) and the hires of the last 3 closed months by department and location. */
+  hiringMovesIn: 'plan.hiring.movesIn',
+  hiringRecentHires: 'plan.hiring.recentHires',
 } as const
 
 export type PlanMetricId = (typeof ID)[keyof typeof ID]
 
 /**
  * Plan > Hiring's metric ids (docs/PLAN.md 9.7, "Metrics"), in the plan's order: every one is heads,
- * a pace or a share of heads, never an amount, a band estimate or a leave fact.
+ * a pace or a share of heads, never an amount, a band estimate or a leave fact. C37 adds the last two.
  */
 export const HIRING_METRIC_IDS: readonly PlanMetricId[] = [
   ID.hiringApprovedByQuarter,
@@ -82,6 +85,8 @@ export const HIRING_METRIC_IDS: readonly PlanMetricId[] = [
   ID.hiringAttritionRate,
   ID.hiringNeededPace,
   ID.hiringMonthsToClose,
+  ID.hiringMovesIn,
+  ID.hiringRecentHires,
 ]
 
 /** The settings the view's engine reads through `ctx.metrics` (docs/PLAN.md 12), by role. */
@@ -98,12 +103,12 @@ const OPENINGS_NOTE =
   'Open and Planned employee seats in scope that no one has started in. An accepted offer is still an opening until its start date.'
 
 /* Plan > Hiring's shared wording (9.7). Heads only: no sentence names an amount or a leave fact. */
-/** Approved seats and their accepted offers, with the people who hold them. */
+/** Approved seats and their signed offers, with the people who hold them. */
 const HIRING_SEATS = uses(PLAN_LINE, F.offer)
 /** What the forecast's modeled exits read (6.7): the seats it starts, the HRIS cohort and the attrition assumption. */
 const HIRING_EXITS = uses(PLAN_LINE, F.opened, F.offer, F.freeze, F.tree, F.seatOrg, F.request, F.assumptions)
 const HIRING_POPULATION =
-  'Approved employee seats in scope in Working (Filled, Open and Planned, starting by the fiscal year end), their accepted offers, and the employees in scope.'
+  'Approved employee seats in scope in Working (Filled, Open and Planned, starting by the fiscal year end), their signed offers, approved moves into them, and the employees in scope.'
 const HIRING_WINDOW = {
   quarters: 'Each quarter end of the fiscal year shown, from the as-of date.',
   fiscalYear: 'From the as-of date to the last day of the fiscal year shown.',
@@ -488,7 +493,7 @@ export const metrics: MetricDef[] = defineMetrics('plan', [
     id: ID.hiringApprovedByQuarter,
     name: 'Approved heads by quarter end',
     definition:
-      'Approved heads whose first head day is on or before the quarter’s end: a Filled seat counts now, an accepted offer from its start date, and an Open or Planned seat from its planned or target start, or from now when it has neither. A seat counts only while it is still an approved head at the quarter’s end. For the last quarter this is the year’s approved heads.',
+      'Approved heads whose first head day is on or before the quarter’s end: a Filled seat counts now, a signed offer or a move in from its start date, and an Open or Planned seat from its planned or target start, or from now when it has neither. A seat counts only while it is still an approved head at the quarter’s end. For the last quarter this is the year’s approved heads.',
     formula: 'approved heads with first head day ≤ quarter end, still approved at the quarter end',
     population: HIRING_POPULATION,
     window: HIRING_WINDOW.quarters,
@@ -512,9 +517,9 @@ export const metrics: MetricDef[] = defineMetrics('plan', [
   },
   {
     id: ID.hiringAcceptedStarts,
-    name: 'Accepted starts',
+    name: 'Future starts',
     definition:
-      'Accepted offers on approved seats that have not started: the req is at Offer accepted and its start date is after the as-of date and on or before the quarter’s end. Only the dates show. The key figure counts those due by the fiscal year end.',
+      'A person with a signed offer who has not started yet, by start date: the req on an approved seat is at Offer accepted, and its start date is after the as-of date and on or before the quarter’s end. Only signed offers count: never a forecast or modeled start, and never an Open or Planned seat without one. Only the dates show. The key figure counts those due by the fiscal year end.',
     formula: 'reqs at stage Offer accepted with as-of date < start date ≤ quarter end',
     population: 'Reqs on approved employee seats in scope.',
     window: HIRING_WINDOW.quarters,
@@ -528,8 +533,8 @@ export const metrics: MetricDef[] = defineMetrics('plan', [
     name: 'Open to hire',
     views: ['home', 'team'],
     definition:
-      'What is left to hire this fiscal year: approved heads at the year end, less current heads, less the accepted starts due by then. It equals the open seats with no accepted offer, less the people not in plan, who count against approved heads. Below 0 it reads "Over by" and is never a hiring target.',
-    formula: 'approved heads at year end − current heads − accepted starts by year end',
+      'What is left to hire this fiscal year: approved heads at the year end, less current heads, less the future starts due by then, less the approved moves into the scope due by then. It equals the open seats with no signed offer or move in, less the people not in plan, who count against approved heads. Below 0 it reads "Over by" and is never a hiring target.',
+    formula: 'approved heads at year end − current heads − future starts by year end − moves in by year end',
     population: HIRING_POPULATION,
     window: HIRING_WINDOW.fiscalYear,
     unit: 'int',
@@ -541,8 +546,9 @@ export const metrics: MetricDef[] = defineMetrics('plan', [
     id: ID.hiringOpenByQuarter,
     name: 'Open to hire by quarter end',
     definition:
-      'Open to hire at each quarter end ahead: approved heads by the quarter end, less current heads, less the accepted starts due by then. Below 0 it reads "Over by".',
-    formula: 'approved heads by quarter end − current heads − accepted starts by quarter end',
+      'Open to hire at each quarter end ahead: approved heads by the quarter end, less current heads, less the future starts and moves in due by then. Below 0 it reads "Over by".',
+    formula:
+      'approved heads by quarter end − current heads − future starts by quarter end − moves in by quarter end',
     population: HIRING_POPULATION,
     window: HIRING_WINDOW.quarters,
     unit: 'int',
@@ -690,6 +696,33 @@ export const metrics: MetricDef[] = defineMetrics('plan', [
     unit: 'num1',
     goodDirection: 'down',
     uses: uses(HIRING_SEATS, F.assignment),
+    owner: OWNER.hrbp,
+  },
+  /* ───────── change C37 ───────── */
+  {
+    id: ID.hiringMovesIn,
+    name: 'Moves in by quarter end',
+    definition:
+      'Approved internal moves into the scope that have not started, by their move date: approved and not yet in the HRIS, or dated ahead in the HRIS, after the as-of date and on or before the quarter’s end. They are not future starts, and the row shows only when it is not 0.',
+    formula: 'approved moves into the scope with as-of date < move date ≤ quarter end',
+    population: 'Approved internal moves into approved employee seats in scope, from outside the scope.',
+    window: HIRING_WINDOW.quarters,
+    unit: 'int',
+    goodDirection: null,
+    uses: uses(PLAN_LINE, F.assignment),
+    owner: OWNER.hrbp,
+  },
+  {
+    id: ID.hiringRecentHires,
+    name: 'Hires in the last 3 months',
+    definition:
+      'Employees hired in each of the last 3 closed months into a seat in scope, as hires year to date counts them, by the department and location of the seat they were hired into, with sub-totals by location and by department. Internal moves and transfers are not hires.',
+    formula: 'employees with a hire date in the month, by the seat’s department and location',
+    population: 'Employees (worker type Employee) hired into seats in scope.',
+    window: 'The last 3 closed months.',
+    unit: 'int',
+    goodDirection: null,
+    uses: uses(F.assignment, ['positions.department', 'positions.location']),
     owner: OWNER.hrbp,
   },
 ])

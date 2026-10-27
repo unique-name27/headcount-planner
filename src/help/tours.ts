@@ -520,7 +520,7 @@ const MY_TEAM: Tour = {
       ...TEAM,
       target: tourTarget('home-hero'),
       title: 'Left to fill',
-      body: 'The Open and Planned seats in your allocation, split into Open, requested and left to request. The parts add up to the number, and each part opens its seats. Under it, Open to hire is approved heads less current heads and the accepted starts to come; it opens Plan > Hiring.',
+      body: 'The Open and Planned seats in your allocation, split into Open, requested and left to request. The parts add up to the number, and each part opens its seats. Under it, Open to hire is approved heads less current heads and the future starts to come; it opens Plan > Hiring.',
       placement: 'right',
     },
     {

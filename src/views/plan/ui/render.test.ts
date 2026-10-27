@@ -99,13 +99,14 @@ describe('the Plan tabs', () => {
     }
   })
 
-  it('render Plan > Hiring in every mode: its tiles, the quarter table, the bar chart, velocity and the readout, heads only', () => {
+  it('render Plan > Hiring in every mode: its tiles, the quarter table, the bar chart, velocity, recent hires and the readout, heads only', () => {
     for (const mode of ['manager', 'hrbp', 'leader', 'finance', 'hr-admin'] as const) {
       const html = markup(mode, 'hiring')
       const text = textOf(html)
       for (const words of [
         'Open to hire, FY27',
-        'Accepted starts to come',
+        'Future starts',
+        'Future starts by quarter end',
         'Hires per month, 3-month pace',
         'Exits per month, 3-month pace',
         'Net hiring pace',
@@ -118,11 +119,31 @@ describe('the Plan tabs', () => {
         'Open to hire at each quarter end',
         'Hiring velocity',
         '3-month pace:',
+        'Hires in the last 3 months, by location and department',
         'Readout',
       ])
         expect(text, `${mode}: ${words}`).toContain(words)
+      // C37: no accepted, expected or forecast start reads on the tab.
+      expect(text, mode).not.toMatch(/accepted starts?|expected starts?/i)
+      // The table of recent hires: its columns where a hire was made, its words where none was (Manager A).
+      if (mode === 'manager') expect(text, mode).toContain('No hire in Jul 2026 to Sep 2026.')
+      else
+        for (const words of [
+          'Department',
+          'Location',
+          'Jul 2026',
+          'Sep 2026',
+          'Hires per month',
+          'All locations',
+        ])
+          expect(text, `${mode}: ${words}`).toContain(words)
       // The tour's target and every figure's id (the export layer reads the registered figures).
-      for (const id of ['plan-hiring-quarters', 'plan-hiring-open', 'plan-hiring-velocity'])
+      for (const id of [
+        'plan-hiring-quarters',
+        'plan-hiring-open',
+        'plan-hiring-velocity',
+        'plan-hiring-recent',
+      ])
         expect(html, `${mode} ${id}`).toContain(`data-tour="figure-${id}"`)
       expect(text, mode).not.toContain('!')
       // Heads only, in every mode: no amount anywhere on the tab.

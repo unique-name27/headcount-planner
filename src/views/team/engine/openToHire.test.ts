@@ -56,7 +56,7 @@ function standIn(note?: string): { fiscalYear: string; kpis: Kpi[] } {
       {
         id: 'hiring-accepted',
         metricId: PLAN.hiringAcceptedStarts,
-        label: 'Accepted starts to come',
+        label: 'Future starts',
         value: 1,
         format: 'int',
       },

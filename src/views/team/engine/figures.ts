@@ -43,7 +43,7 @@ export const TEAM_KEY_METRICS: readonly string[] = [
  * My team's Open to hire tile (docs/PLAN.md 9.7, change C36; the hiring freeze): Plan > Hiring's own
  * tile for the tree, re-linked to Plan > Hiring, drawn beside the hero Left to fill with
  * `OPEN_TO_HIRE_NOTE` (Left to fill counts seats; Open to hire also subtracts current heads and the
- * accepted starts to come). It is not an eighth key figure: Manager mode keeps its 7 (9.3's 5 to 7
+ * future starts to come). It is not an eighth key figure: Manager mode keeps its 7 (9.3's 5 to 7
  * rule), and none of them made way for it. `TEAM_FIGURES.openToHire` is its figure; the engine fills
  * `TeamModel.openToHire` (./index.ts).
  */

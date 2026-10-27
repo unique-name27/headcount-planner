@@ -10,7 +10,7 @@
  *    columns its counts open (Manager mode lists seats and offers, never people records), and My
  *    team's Open to hire tile (Manager mode only).
  *  - Every hiring drill leaves out every amount, band and leave column of its kind, in every mode.
- *  - The 16 metric ids of 9.7 are in the catalog in the plan's order, with its units, definitions,
+ *  - The 18 metric ids of 9.7 (C36's 16, C37's 2) are in the catalog in the plan's order, with its units, definitions,
  *    formula, population and window, owned by HR business partners, shown in every mode, with no
  *    guard class, no pay, offer or leave field in their lineage, and the copy rules kept.
  *  - The figure ids, tile ids, row keys and words are the frozen data; the homes' slot and My team's
@@ -272,9 +272,12 @@ describe('the metrics of 9.7 (section 12 rows)', () => {
     'plan.hiring.attritionRate': 'pct',
     'plan.hiring.neededPace': 'num1',
     'plan.hiring.monthsToClose': 'num1',
+    // C37: Moves in by quarter end, and Hires in the last 3 months by location and department.
+    'plan.hiring.movesIn': 'int',
+    'plan.hiring.recentHires': 'int',
   }
 
-  it('are the plan’s 16 ids, in its order, registered under Plan', () => {
+  it('are the plan’s 18 ids (16 from C36, 2 from C37), in its order, registered under Plan', () => {
     expect([...HIRING_METRIC_IDS]).toEqual(Object.keys(UNIT))
     expect(Object.values(ID).filter((id) => id.startsWith('plan.hiring.'))).toEqual([...HIRING_METRIC_IDS])
     for (const id of HIRING_METRIC_IDS) {
@@ -337,7 +340,8 @@ describe('the frozen data of the tab', () => {
     expect(HIRING_ROWS.filter((r) => r.ahead).map((r) => r.label)).toEqual([
       'Approved heads by quarter end',
       'Current heads',
-      'Accepted starts by quarter end',
+      'Future starts by quarter end',
+      'Moves in by quarter end',
       'Open to hire',
       'New to hire in the quarter',
       'Expected exits by quarter end',
@@ -424,7 +428,7 @@ describe('help (9.7 Help, 14.2)', () => {
     const glossary = buildGlossary(METRICS)
     expect(HIRING_GLOSSARY.map((g) => g.term)).toEqual([
       'Open to hire',
-      'Accepted starts',
+      'Future starts',
       'Hiring pace',
       'Net hiring pace',
       'Attrition (heads)',

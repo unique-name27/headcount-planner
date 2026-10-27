@@ -299,7 +299,7 @@ export function producerFixtures(leaderTree: readonly string[]) {
         label: 'Open to hire',
         note: '14 open seats, 2 not in plan',
       }),
-      k(PLAN.hiringAcceptedStarts, 3, { id: 'hiring-accepted', label: 'Accepted starts to come' }),
+      k(PLAN.hiringAcceptedStarts, 3, { id: 'hiring-accepted', label: 'Future starts' }),
       k(PLAN.hiringPace, 1.3, { id: 'hiring-pace', format: 'num1', drill: undefined, calc: () => null }),
     ],
     findings: [],

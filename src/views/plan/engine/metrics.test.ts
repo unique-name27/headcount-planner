@@ -112,8 +112,9 @@ describe('every tile, figure and finding links to a registered metric', () => {
         expect(id.startsWith('plan-'), `${file}: ${id}`).toBe(true)
     }
     // Ten from M2, M3's two (Plan > Positions' changes in Working and Plan > Transfers' drafts), and
-    // Plan > Hiring's three (open to hire by quarter, its bar chart and hiring velocity; 9.7, C36).
-    expect(n).toBe(15)
+    // Plan > Hiring's four (open to hire by quarter, its bar chart and hiring velocity, 9.7 and C36;
+    // the hires of the last 3 months by location and department, C37).
+    expect(n).toBe(16)
   })
 })
 

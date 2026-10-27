@@ -107,6 +107,8 @@ const TABLE: Record<string, [string, MetricView[]]> = {
   'plan.hiring.attritionRate': ['pct', ['plan']],
   'plan.hiring.neededPace': ['num1', ['plan']],
   'plan.hiring.monthsToClose': ['num1', ['plan']],
+  'plan.hiring.movesIn': ['int', ['plan']],
+  'plan.hiring.recentHires': ['int', ['plan']],
   'requests.queue.open': ['int', ['requests', 'home']],
   'requests.queue.waiting': ['int', ['requests', 'home']],
   'requests.queue.sentBack': ['int', ['requests']],
@@ -247,8 +249,8 @@ describe('the catalog', () => {
   it('gives every entry a formula, and every data metric a population and a window', () => {
     expect(METRICS.filter((d) => !d.formula?.trim()).map((d) => d.id)).toEqual([])
     const data = METRICS.filter((d) => !readsNoData(d))
-    // 91 before the hiring freeze, plus Plan > Hiring's 16 (9.7, C36).
-    expect(data.length).toBe(107)
+    // 91 before the hiring freeze, plus Plan > Hiring's 16 (9.7, C36) and C37's 2.
+    expect(data.length).toBe(109)
     expect(data.filter((d) => !d.population?.trim() || !d.window?.trim()).map((d) => d.id)).toEqual([])
   })
 

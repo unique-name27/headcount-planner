@@ -8,6 +8,15 @@ the HRBP, Leader and Manager homes. The task called the metric list "9.8"; PLAN 
 ("Metrics"), and that list is what is frozen here. Readings and changes in PLAN 15 (R1 to R131, C1 to
 C36) override earlier PLAN text wherever they differ; section 5 adds the readings this freeze took.
 
+**Change C37 (26 Oct 2026)** amends these contracts: "accepted starts" are **Future starts**, people with
+a signed offer only, by start date; approved internal moves into the scope that have not started are
+their own term, **Moves in** `M(q)`, so `O(q) = A(q) − H − S(q) − M(q)`; the velocity's months ahead
+show future starts (signed offers by start month, whole people), never a forecast or modeled start; and
+a new figure, `plan-hiring-recent`, gives the hires of the last 3 closed months by location and
+department. Section 1.8 lists what changed in the exports, section 5.3 the readings C37 took (F1 to
+F8, which override H15, I3, T7 and V5 where they differ), and section 9 the build and its checks.
+Readings H, T, W, K, I and V1 to V19 hold wherever C37 does not change them.
+
 Builders fill bodies behind these contracts and never rename or retype an export; a builder who needs a
 change reports it to the lead (`needsElsewhere`). New exports may be added, and interfaces may gain
 optional fields. Every stub throws `notBuilt('<file>.<function>')` (src/plan/notBuilt.ts); stub
@@ -33,20 +42,21 @@ figure, a calculation card, a drill table, a finding, an export or a help senten
 |---|---|---|
 | `HiringSeat` | type | One approved seat in scope from Working: `positionId`, `filled`, `acceptedStart` (date only), `plannedStart` (planned, else the open req's target start), `lastApprovedDay` (the day before an approved Elimination, Trade or move out takes effect; null to FY end). R1's filter (On hold, Eliminated, SC-6 held seats out) is applied before the engine sees it |
 | `HiringPerson` | type | An employee active at the as-of date in scope: `personId`, `positionId` (null: not in plan) |
-| `HiringOffer` | type | An accepted offer not started: `reqId`, `positionId`, `startDate` |
+| `HiringOffer` | type | A signed offer (accepted, not started): `reqId`, `positionId`, `startDate`. S(q)'s future starts (C37) |
+| `HiringMove` | type (C37) | A move in not started: `moveId`, `positionId`, `startDate`. M(q)'s moves |
 | `HiringEvent` | type | A hire (on = hire date, the seat hired into) or an exit (on = last day, the seat held on it): `personId`, `positionId`, `on`. Exits after the as-of date are the known exits ahead |
 | `HiringHeadsAt` | type | Heads in scope at a closed month-end: `month`, `heads` |
-| `HiringForecastMonth` | type | An open forecast month to FY end, heads only: `month`, `starts`, `modeledExits` |
-| `HiringInput` | type | `asOf`, `fiscalYear`, `lastClose`, `seats`, `people`, `offers`, `hires`, `exits`, `headsAt`, `forecast` |
+| `HiringForecastMonth` | type | An open forecast month to FY end, heads only: `month`, `modeledExits` (C37 removed `starts`: no forecast start reaches the engine) |
+| `HiringInput` | type | `asOf`, `fiscalYear`, `lastClose`, `seats`, `people`, `offers`, `moves` (C37), `hires`, `exits`, `headsAt`, `forecast` |
 | `HIRING_INPUT_KEYS`, `HIRING_INPUT_KEYS_EXACT` | data | Every key of every input type; the type checker holds each list equal to its type's keys, so a field added to an input must be listed, and the contracts test scans every listed key for money, rate, band, pay and leave words |
 | `PACE_MONTHS` ([3, 6]), `TRAILING_MONTHS` (12) | data | 9.7's pace windows and the trailing window |
 | `QuarterNo`, `HiringQuarterFrame` | types | A quarter (`label` "Q1", `start`, `end`, `kind` 'history' or 'ahead') |
 | `HiringHeads` | type | H: `total`, `inApprovedSeats`, `notInPlan`, `elsewhere` (people in a seat that is not an approved head), `personIds`, `notInPlanIds` |
 | `ExpectedExits` | type | E(q): `known`, `knownIds`, `modeled` (exact), `total` |
 | `PaceStatus` | type | 'on-pace', 'behind', 'nothing-to-hire' |
-| `HiringQuarter` | type | One column. History: `actualHeads`, `hires`, `hireIds`, `exits`, `exitIds`. Ahead: `approved` A(q) and `approvedIds`, `accepted` S(q) and `acceptedIds` (req IDs), `open` O(q), `openSeats` and `openSeatIds` (the seat view), `newToHire`, `expectedExits`, `toReachPlan`, `monthsLeft`, `neededPace`, `paceStatus`, `behindBy`. The other kind's fields are null (id lists empty) |
-| `HiringTable` | type | `fiscalYear`, `asOf`, `heads`, `openNow`, `quarters` (Q1 to Q4), `openFyEnd` O(FY end), `acceptedToCome` S(FY end) |
-| `HiringMonth` | type | A velocity month: `month`, `kind` ('actual' or 'forecast'), `hires`, `exits`, `net`, `hireIds`, `exitIds` |
+| `HiringQuarter` | type | One column. History: `actualHeads`, `hires`, `hireIds`, `exits`, `exitIds`. Ahead: `approved` A(q) and `approvedIds`, `accepted` S(q) and `acceptedIds` (req IDs of signed offers), `movesIn` M(q) and `moveInIds` (C37), `open` O(q), `openSeats` and `openSeatIds` (the seat view), `newToHire`, `expectedExits`, `toReachPlan`, `monthsLeft`, `neededPace`, `paceStatus`, `behindBy`. The other kind's fields are null (id lists empty) |
+| `HiringTable` | type | `fiscalYear`, `asOf`, `heads`, `openNow`, `quarters` (Q1 to Q4), `openFyEnd` O(FY end), `acceptedToCome` S(FY end), `movesToCome` M(FY end) (C37) |
+| `HiringMonth` | type | A velocity month: `month`, `kind` ('actual' or 'forecast', a month ahead), `hires` (actual hires, or the future starts ahead, C37), `exits`, `net`, `hireIds`, `exitIds`, `startIds` (optional, C37: a month ahead's future starts by req ID) |
 | `HiringPaces` | type | `hires3`, `hires6`, `exits3`, `exits6`, `net3`, `net6`, `exits12`, `averageHeads12`, `attrition` (a fraction); null where the window lacks closed months |
 | `HiringVelocity`, `MonthsToClose`, `HiringResult` | types | The velocity months and paces; `{ closing: true; months }` or `{ closing: false; months: null }`; everything together |
 | `hiringQuarters(fy, asOf, lastClose)` | stub | The four frames |
@@ -54,13 +64,15 @@ figure, a calculation card, a drill table, a finding, an export or a help senten
 | `approvedBy(seats, asOf, end)` | stub | A(q)'s seats: first head day ≤ end, and still an approved head on `end` |
 | `currentHeads(people, seats)` | stub | H with its split |
 | `acceptedBy(offers, asOf, end)` | stub | S(q)'s req IDs: asOf < start ≤ end |
-| `openSeatsBy(seats, offers, asOf, end)` | stub | The seat view: in A(q), not Filled, no accepted start in S(q) |
+| `movesBy(moves, asOf, end)` | engine addition (C37) | M(q)'s move IDs: asOf < date ≤ end, one per move |
+| `futureStartsIn(offers, asOf, month)` | engine addition (C37) | A month ahead's future starts: signed offers starting in the month, after the as-of date, one per req |
+| `openSeatsBy(seats, offers, asOf, end)` | stub | The seat view: in A(q), not Filled, no start in `offers` by `end` (`hiringTable` passes the signed offers and the moves in, C37) |
 | `expectedExits(exits, forecast, asOf, end)` | stub | Known in (asOf, end], plus modeled for the months whose month-end is in (asOf, end] |
 | `monthsLeft(asOf, end)` | stub | Month-ends after asOf, up to and including end |
 | `neededPace(toReachPlan, months)` | stub | ÷ months, null at 0 months |
 | `paceStatus(toReachPlan, needed, pace3)` | stub | `{ status, behindBy }` |
 | `hiringTable(input, pace3)` | stub | The table |
-| `closedMonths(lastClose, n)`, `hiringMonths(input)` | stubs | The trailing closed months; the velocity months (12 closed, then the forecast months to FY end) |
+| `closedMonths(lastClose, n)`, `hiringMonths(input)` | stubs | The trailing closed months; the velocity months (12 closed, then the forecast months to FY end, whose hires are their future starts, C37) |
 | `perMonth(counts, n)`, `attritionRate(exits, headsAt)`, `hiringPaces(months, headsAt)`, `hiringVelocity(input)` | stubs | The paces and attrition |
 | `monthsToClose(openFyEnd, netPace)` | stub | ÷ the net pace while above 0; 0 when nothing is open; else not closing |
 | `hiringOf(input)` | stub | Everything Plan > Hiring shows |
@@ -75,12 +87,12 @@ amounts (`../types` lines, cost, band, FX, the forecast).
 
 | File | State | Exports |
 |---|---|---|
-| `engine/hiringTab.ts` (new) | data and 2 stubs | `HIRING_KPIS` (6 tiles in strip order: `hiring-open` plan.hiring.open "Open to hire", `hiring-accepted` plan.hiring.acceptedStarts "Accepted starts to come", `hiring-pace` "Hires per month, 3-month pace", `hiring-exit-pace` "Exits per month, 3-month pace", `hiring-net-pace` "Net hiring pace", `hiring-months-to-close` "Months to close at this pace"); `hiringOpenLabel(fy)` ("Open to hire, FY27", the headline tile's label, so the homes' re-linked tile reads the same); `QUARTER_KEYS`, `QuarterKey`, `HiringRowKey`, `HIRING_ROWS` (10 rows: the 8 rows of 9.7 for quarters ahead, then "Hires in the quarter" and "Exits in the quarter" for closed ones; Current heads fills both, the closed quarters' cell being actual heads at the quarter end), `HISTORY_NOTE`, `overByText(n)` ("Over by 1"), `ON_PACE_TEXT`, `behindByText(shown)` ("Behind by 0.7 a month"), `NOT_CLOSING_TEXT` ("Not closing at this pace: exits match or outrun hires."), `OPEN_TO_HIRE_NOTE` (My team's note); row types `HiringQuarterRow` (q1 to q4 and per-cell `notes`), `HiringOpenRow`, `HiringVelocityRow`; `PlanHiring` (`fiscalYear`, `kpis`, `findings` 0 to 3, `quarters`, `openByQuarter`, `velocity`, `paceNote`). Stubs: `hiringInputOf(ctx)`, `planHiringModel(ctx)` |
-| `engine/figures.ts` | ids added | `PLAN_FIGURES.hiringKpis` 'plan-hiring-kpis', `hiringQuarters` 'plan-hiring-quarters', `hiringOpen` 'plan-hiring-open' (the small bar chart), `hiringVelocity` 'plan-hiring-velocity', `hiringReadout` 'plan-hiring-readout' |
+| `engine/hiringTab.ts` (new) | data and 2 stubs | `HIRING_KPIS` (6 tiles in strip order: `hiring-open` plan.hiring.open "Open to hire", `hiring-accepted` plan.hiring.acceptedStarts "Future starts" (C37; "Accepted starts to come" before), `hiring-pace` "Hires per month, 3-month pace", `hiring-exit-pace` "Exits per month, 3-month pace", `hiring-net-pace` "Net hiring pace", `hiring-months-to-close` "Months to close at this pace"); `hiringOpenLabel(fy)` ("Open to hire, FY27", the headline tile's label, so the homes' re-linked tile reads the same); `QUARTER_KEYS`, `QuarterKey`, `HiringRowKey`, `HIRING_ROWS` (10 rows: the 8 rows of 9.7 for quarters ahead, then "Hires in the quarter" and "Exits in the quarter" for closed ones; C37 renames "Accepted starts by quarter end" to "Future starts by quarter end" and adds an eleventh, `moves` "Moves in by quarter end", after it, shown only when not 0 (`ONLY_WHEN_NOT_ZERO`); Current heads fills both, the closed quarters' cell being actual heads at the quarter end), `HISTORY_NOTE`, `overByText(n)` ("Over by 1"), `ON_PACE_TEXT`, `behindByText(shown)` ("Behind by 0.7 a month"), `NOT_CLOSING_TEXT` ("Not closing at this pace: exits match or outrun hires."), `OPEN_TO_HIRE_NOTE` (My team's note); row types `HiringQuarterRow` (q1 to q4 and per-cell `notes`), `HiringOpenRow`, `HiringVelocityRow`; `PlanHiring` (`fiscalYear`, `kpis`, `findings` 0 to 3, `quarters`, `openByQuarter`, `velocity`, `paceNote`). Stubs: `hiringInputOf(ctx)`, `planHiringModel(ctx)` |
+| `engine/figures.ts` | ids added | `PLAN_FIGURES.hiringKpis` 'plan-hiring-kpis', `hiringQuarters` 'plan-hiring-quarters', `hiringOpen` 'plan-hiring-open' (the small bar chart), `hiringVelocity` 'plan-hiring-velocity', `hiringRecent` 'plan-hiring-recent' (C37), `hiringReadout` 'plan-hiring-readout' |
 | `ui/Hiring.tsx` (new) | renders nothing | `Hiring()`: no props; reads its own model when built |
 | `ui/model.ts` | built | `usePlanHiring()`: `useMemo(() => planHiringModel(ctx), [ctx])` (the stub component does not call it) |
 | `index.tsx` | tab added | `tabs`: overview, positions, openings, **hiring** ("Hiring"), transfers; `Body` renders `<Hiring />` for 'hiring' |
-| `metrics.ts` | 16 ids and entries added | `ID.hiring*` and `HIRING_METRIC_IDS` (section 1.3) |
+| `metrics.ts` | 16 ids and entries added (18 since C37) | `ID.hiring*` and `HIRING_METRIC_IDS` (section 1.3) |
 
 Plan > Hiring is **its own model, not a `PlanModel` field** (reading H10): it reads the forecast's
 exits, and the plan model's 400 ms budget must not carry a forecast run.
@@ -108,7 +120,7 @@ window, owner HR business partners, no settings, no `dependsOn`, no Guard class 
 |---|---|---|---|
 | `plan.hiring.approvedByQuarter` | Approved heads by quarter end | int | plan |
 | `plan.hiring.currentHeads` | Current heads (the count `plan.heads.actual` makes, at the as-of date) | int | plan |
-| `plan.hiring.acceptedStarts` | Accepted starts | int | plan |
+| `plan.hiring.acceptedStarts` | Future starts (C37; "Accepted starts" before) | int | plan |
 | `plan.hiring.open` | Open to hire | int | plan, home, team |
 | `plan.hiring.openByQuarter` | Open to hire by quarter end | int | plan |
 | `plan.hiring.newByQuarter` | New to hire in the quarter | int | plan |
@@ -122,10 +134,14 @@ window, owner HR business partners, no settings, no `dependsOn`, no Guard class 
 | `plan.hiring.attritionRate` | Attrition (heads) | pct (one decimal: 9.7's "pct1") | plan |
 | `plan.hiring.neededPace` | Hires needed per month | num1 | plan |
 | `plan.hiring.monthsToClose` | Months to close at this pace | num1 | plan |
+| `plan.hiring.movesIn` (C37) | Moves in by quarter end | int | plan |
+| `plan.hiring.recentHires` (C37) | Hires in the last 3 months | int | plan |
 
 `src/metrics/catalog.test.ts` (section 12's table and the data-metric count, 91 → 107) and
 `src/metrics/ids.test.ts` (the plan's id list and the id count, 91 → 107) were updated to the new ids;
-no other check changed. Every hiring metric shows in every mode (no table hides it).
+no other check changed. Every hiring metric shows in every mode (no table hides it). C37 appends the
+last two rows: the counts read 109, `HIRING_METRIC_IDS` holds 18, and the access matrix gains their two
+metric rows (S in every mode).
 
 ### 1.4 The policy (`src/access/**`)
 
@@ -164,7 +180,7 @@ strip, with its note followed by `OPEN_TO_HIRE_NOTE` (null with no tree or an un
 
 | File | State | Exports |
 |---|---|---|
-| `hiring.ts` (new) | data | `HIRING_SECTION_TITLE` ('Hiring'), `HIRING_SECTION` (the heading, one paragraph, one list of four items, My team's note under `MANAGER`, the role homes' tile line under `ROUNDED`), `HIRING_KEYWORDS`, `HIRING_GLOSSARY` (Open to hire, Accepted starts, Hiring pace, Net hiring pace, Attrition (heads), each with its metric id), `HIRING_TOUR_AT` (4), `HIRING_TOUR_STEP` (Plan > Hiring, target `[data-tour="figure-plan-hiring-quarters"]`, "Open to hire by quarter") |
+| `hiring.ts` (new) | data | `HIRING_SECTION_TITLE` ('Hiring'), `HIRING_SECTION` (the heading, one paragraph, one list of four items (five since C37: the recent hires table), My team's note under `MANAGER`, the role homes' tile line under `ROUNDED`), `HIRING_KEYWORDS`, `HIRING_GLOSSARY` (Open to hire, Future starts (C37; Accepted starts before), Hiring pace, Net hiring pace, Attrition (heads), each with its metric id), `HIRING_TOUR_AT` (4), `HIRING_TOUR_STEP` (Plan > Hiring, target `[data-tour="figure-plan-hiring-quarters"]`, "Open to hire by quarter") |
 | `articles/views.ts` | data | `view-plan`: summary and both `without` summaries name hiring progress; keywords gain `HIRING_KEYWORDS`; `HIRING_SECTION` sits between Openings and Transfers |
 | `names.ts` | data | `HELP_NAMES` gains `Plan > Hiring` (`tab:plan.hiring`) |
 
@@ -183,6 +199,24 @@ in every mode), the view-home and view-team tours and articles name Open to hire
   headline (approved heads) and every other home's key figures are unchanged. `src/app/**` needed no
   change: the shell draws tabs from the registry, the route guard reads the policy, and the
   whole-view export reads each tab's registered figures.
+
+### 1.8 Change C37 (26 Oct 2026): what changed in the exports
+
+| File | Change |
+|---|---|
+| `src/plan/engine/hiring.ts` | `HiringMove`, `HiringInput.moves` and `HIRING_INPUT_KEYS.move` (`moveId`, `positionId`, `startDate`); `HiringForecastMonth` loses `starts` (`forecast` keys `month`, `modeledExits`); `HiringQuarter.movesIn`, `moveInIds`; `HiringTable.movesToCome`; `HiringMonth.startIds` (optional); `movesBy`, `futureStartsIn`. `O(q) = A − H − S − M`, also on the day before a later year (`openBefore`); the seat view takes the moves' seats as the offers' |
+| `src/plan/engine/hiring.fixtures.ts` | `forecastMonth(month, modeledExits)`, `moveIn(...)`, `hiringInput` defaults `moves: []`; HG1 gains `movesIn` and `ahead` (the months ahead); HG8 (moves in) |
+| `src/views/plan/engine/hiringData.ts` | Moves in go to `input.moves`, never into `offers`; the forecast months carry modeled exits only |
+| `src/views/plan/engine/hiringTab.ts` | `HIRING_KPIS` 'Future starts'; the `moves` row key and row; `ONLY_WHEN_NOT_ZERO`; `HiringRecentRow`, `HiringRecentKind`, `ALL_DEPARTMENTS`, `ALL_LOCATIONS`, `NO_DEPARTMENT`; `PlanHiring.recent` and `recentMonths`; `OPEN_TO_HIRE_NOTE` says future starts |
+| `src/views/plan/engine/hiringModel.ts` | The words; the moves' row, card input and step, tile formula term and seat view words; Future starts open their reqs (the card that counted moves is gone); the months ahead's future starts open their offers (`velocityKindText`: "Actual", "Ahead"); `recentFigure`; `NO_LOCATION` |
+| `src/views/plan/engine/figures.ts`, `src/access/ids.ts` | `PLAN_FIGURES.hiringRecent` and `HIRING_FIGURE_IDS` gain 'plan-hiring-recent' (after velocity, before the readout) |
+| `src/views/plan/engine/lineage.ts`, `lineageNotes.ts` | `FIGURE.hiringRecent` (the hires and the seat's department and location); `FIGURE.hiringVelocity` reads the signed offers and the expected exits (`HIRING_ACCEPTED`, `HIRING_EXITS`) instead of the forecast's starts; `HIRING_LINEAGE_NOTES['plan-hiring-recent']` (START, KIND, TREE) |
+| `src/views/plan/metrics.ts` | `ID.hiringMovesIn`, `ID.hiringRecentHires` and their entries; Future starts' name and definition; open to hire's definitions and formulas name the moves' term |
+| `src/views/plan/ui/Hiring.tsx`, `HiringVelocityChart.tsx` | The new figure (a table, full width, after velocity); the chart's legend and tip read "Future starts" (whole people) |
+| `src/help/**` | The Hiring section (future starts, moves in, the new table), keywords, glossary term, tour step's words, `view-plan`, `view-home` and the tours' Open to hire words; What's new "Future starts and recent hires" (2026-10-26) |
+| `src/access/__snapshots__/access-matrix.txt` | +3 rows (the two metrics, the figure); no line changed; `access-how.txt` unchanged |
+
+No surface, tab, tile, article or tour id was renamed or removed, and no metric id changed.
 
 ## 2. Who owns what
 
@@ -314,6 +348,22 @@ The review of the built module (findings HN-1 to HN-11, HU-1 to HU-14, HP-1 to H
 | V18 | HU-10, HU-12, HU-14 | Hires needed reads "Backfills only" where nothing is open to hire and the gap is under half a hire a month; Current heads' records and the O(q) card give the split ("1,450 heads in approved seats and 6 people not in plan."); help places My team's tile "under Left to fill" (src/help/hiring.test.ts) |
 | V19 | (found by the verify run) | A blank req ID is a req, never a move in (`isMoveIn` reads only strings): the home lineage probe blanks `reqs.reqId` in every row, and the tab must still build (hiringReview "data with blank req IDs") |
 
+### 5.3 Readings change C37 took (26 Oct 2026)
+
+Each has a test (src/plan/engine/hiring.test.ts for the engine, src/views/plan/engine/hiringTab.test.ts
+for the tab unless named).
+
+| # | Topic | Reading taken |
+|---|---|---|
+| F1 | Future starts | S(q) holds signed offers only: a req at Offer accepted that nobody has started on, on an approved seat, starting after the as-of date and by the quarter end, one per req. No forecast or modeled start, no Open or Planned seat without one, no move in. The metric id stays `plan.hiring.acceptedStarts`, named "Future starts" (glossary: a person with a signed offer who has not started yet, by start date) |
+| F2 | Moves in | M(q) holds the moves V5 read as starts: approved internal moves into the scope from outside it that have not started, the HRIS's not recorded or dated ahead (`HiringMoveIn`), by their date, in the engine's own input `moves`. `O(q) = A(q) − H − S(q) − M(q)`. A move still takes its seat from its date (the seat's `acceptedStart`, H2), so the seat view leaves its seat out of the open seats, and a move onto a seat that is not open is in `otherStarts`, named "move in" in words. Supersedes V5's "a move into it a start in S(q) that is not an offer" |
+| F3 | Only when not 0 | The Moves in row shows only when a quarter ahead holds one (`ONLY_WHEN_NOT_ZERO`); so do the O(q) card's input and "− moves in" step, the tile formula's term ("− 1 move in by then"), and the words of the over-plan notes and of new to hire's first card. On the sample no scope has a move in, so the table keeps its 10 rows |
+| F4 | Their records | A Moves in cell opens the seats the people move into (positions, every mode, weighted when two share a seat): a move holds no req. Future starts open their reqs (dates only) in every mode; the card that counted moves beside offers is gone |
+| F5 | The months ahead | The velocity's months ahead (H24's months) show future starts: the signed offers starting in the month after the as-of date (`futureStartsIn`, `HiringMonth.startIds`), whole people, opening their reqs; never the forecast's starts (supersedes H15 and I3; T7's forecast-start records are gone). `HiringForecastMonth` keeps modeled exits only, so no modeled start reaches the engine. The months ahead add up to S(FY end) whenever they run from the as-of date to the year end. A month closed after the as-of date (V10) reads, as a month ahead, the future starts the as-of date knows, and its exits as before. Hires read int in every month; exits and net stay num1 ahead. The kind column reads "Closed or ahead" ("Actual", "Ahead"), the legend "Future starts" |
+| F6 | Recent hires | `plan-hiring-recent`: the last 3 closed months (the paces' months), the hires as the velocity counts them (`plan.hires.ytd`'s hire, by event, V3), each under the department and location of the seat it was hired into on the hire date (the seat's row in effect then, else its first row; "No department", "No location" for blanks). A row per department and location with a hire, sorted by location after each department, then that department's sub-total ("All locations"); then the locations' sub-totals ("All departments"); then the total. Names sort alphabetically, "No ..." last. Columns: Department, Location, the 3 months, Total, Hires per month (total ÷ 3). No close: no rows, "The last 3 months show once 3 months are closed."; no hire: the total row at 0, "No hire in Jul 2026 to Sep 2026." |
+| F7 | Its records | Every count opens the hires it counts: workers where the mode lists them, else (Manager mode, H12) the seats hired into, `HIRING_DRILL_HIDE` on each; Hires per month opens its card (metric `plan.hiring.pace`), its records each counting 1/3 |
+| F8 | Metrics, help | Two metric ids, `plan.hiring.movesIn` and `plan.hiring.recentHires` (int), after `plan.hiring.monthsToClose`: `HIRING_METRIC_IDS` 18, the catalog's data metrics 109, S in every mode, no guard class, Learn more `view-plan` by prefix. The view-plan tour stays at its 6 steps (14.2's most), so the new table has no step; the Hiring section names it |
+
 ## 6. The freeze check
 
 Run from the project root on 25 Oct 2026 (Node 24.14.1), after the last change of the freeze:
@@ -417,3 +467,40 @@ deleting `node_modules/.vite`:
 
 What is still open is in section 7: docs/PLAN.md 9.3 and 15, the optional ARCHITECTURE.md lines, and a
 browser pass of the velocity chart and the quarter grid.
+
+## 9. Change C37 (26 Oct 2026)
+
+The owner asked, on 26 Oct 2026: "for expected starts, only call it future starts, and only include
+people that have signed offers. make sure to add hiring velocity by including the number of hires into
+that location and group over the last 3 months." PLAN 9.7 and its C37 row were amended by the lead;
+this step built it end to end (readings F1 to F8, section 5.3; exports, section 1.8).
+
+What the sample reads (30 Sep 2026, September closed, FY27 Working), pinned in sample.test.ts by
+independent code: no scope has a move in, so every number of M4-REPORT's table stands; the months
+ahead, October to March, show future starts 3, 3, 3, 0, 0, 0 (Silicon Engineering and the leader's
+org), 8, 8, 6, 0, 0, 0 (the company) and none (Manager A), each adding up to the year's future starts;
+the hires of July to September read 2, 8, 3 for Silicon Engineering and the leader's org over 10
+department and location rows (6 departments, 5 locations), 11, 19, 9 for the company over 31 (16
+departments, 9 locations), and none for Managers A, B and C.
+
+Tests added or changed: hiring.test.ts (HG1's months ahead, `futureStartsIn`, `movesBy`, signed offers
+only, HG8's M(q) with its control, the day before a later year); hiringTab.test.ts (every case: future
+starts are signed offers and the months ahead add up to the tile, the forecast's own starts as the
+control, no Open or Planned seat without an offer, the offers' records; the recent table's totals,
+sub-totals, records and cards in every case, its placement from the raw rows, Managers A, B and C, a
+planted hire in Manager A's tree opening its seat, no close); hiringReview.test.ts (V5's move in as
+M(q), its row, records and card); hiringLineage.slow.test.ts (the new figure probed);
+src/access/leaks.hiring.slow.test.ts (the new figure read in every mode with its records, CSV and
+clipboard text, and in the Shareable file); the policy, matrix, catalog, ids, wording, contracts,
+render and help tests for the new ids, words and counts.
+
+Checks, from the project root with `HCP_TEST_WORKERS=4` (no dev server, no `npm run verify`):
+
+| Check | Result |
+|---|---|
+| `npx tsc --noEmit -p .` | Clean |
+| `npx biome check src scripts` | 1,159 files, no findings |
+| `npx vitest run --project unit` over src/plan/engine, src/views/plan, src/testkit, src/ship and the two contracts tests | 62 files, 976 tests passed |
+| `npx vitest run --project unit` over src/access, src/help, src/metrics, src/views/home, src/views/team, src/data/sample | 60 files, 717 tests passed |
+| `hiringLineage.slow.test.ts`, `counts.slow.test.ts`, `leaks.manager.slow.test.ts`, `hiring.perf.test.ts` | 3, 2, 20 and 4 tests passed |
+| `leaks.hiring.slow.test.ts` | All 21 tests passed: the first 12 in a full-file run, the amount perturbation case alone (200 s), the other 8 together (81 s). Each full-file run (three) ended with a worker access violation (exit 3221225477, not out of memory) in the 13th test; HEAD's own copy of the file (from `git archive`) ended the same way in the same test, so it is this machine's instability, not the change |

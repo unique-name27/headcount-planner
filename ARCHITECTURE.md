@@ -345,7 +345,7 @@ beside the lead figure (span 8). What if has one tab, `levers`, with exactly thr
 one trade ratio per trade lever, and no Readout. Every KPI on a tab or home has `metricId`, `uses`
 and a `drill` or `calc`; every `<Figure>`, `<Hero>` and `<ListFigure>` has `metric=`.
 
-Plan > Hiring (PLAN 9.7, change C36; docs/CONTRACTS-HIRING.md) is heads only in every mode and has
+Plan > Hiring (PLAN 9.7, changes C36 and C37; docs/CONTRACTS-HIRING.md) is heads only in every mode and has
 a model of its own, not a `PlanModel` field, since it reads the forecast and the plan model's budget
 must not carry a forecast run: `views/plan/engine/hiringTab.ts` `planHiringModel(ctx)` (cached per
 context) builds it from the pure engine `plan/engine/hiring.ts` `hiringOf` over the context's input
@@ -359,7 +359,11 @@ cohort of their own (`ForecastInput.ownCohort`, `forecastRunOf`'s `ownCohort` op
 seat set and only the last 4 kept, since each is a full run), so no last day at or above the manager's seat, or of a peer outside the tree, moves the
 tree's modeled exits. Known exits read each assignment clipped at an approved Elimination's last
 day, in the tab and in the Forecast view's flows alike (`forecast/engine/heads.ts` `exitDaysOf`).
-The HRBP and Leader homes and My team re-link the tab's Open to hire tile by metric id.
+The HRBP and Leader homes and My team re-link the tab's Open to hire tile by metric id. Since C37
+the engine's input holds signed offers (`offers`, S(q)'s future starts) and moves into the scope
+(`moves`, M(q)) apart, and the forecast months it reads carry modeled exits only, so no forecast
+start can reach the tab; the hires of the last 3 closed months by department and location
+(`plan-hiring-recent`) are built in `hiringModel.ts` from the same hires as the velocity chart.
 
 Forecast accuracy (`forecast.accuracy.heads` and `forecast.accuracy.cost`, R14, M4 review SA-1) has
 one engine, `views/finance/engine/accuracy.ts` `forecastAccuracyOf`: the fiscal year's latest locked

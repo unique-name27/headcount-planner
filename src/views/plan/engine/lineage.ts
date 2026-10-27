@@ -89,16 +89,16 @@ const HIRES = uses(
 const HIRING_SEATS = uses(LINE_STATUS, REQ_ON)
 
 /**
- * Plan > Hiring's accepted starts: the offers at Offer accepted on approved seats, one per req.
- * Whether a seat with an offer is an approved head reads its rows, kind and planned start, not who
- * holds it (Filled and Open seats are both approved heads).
+ * Plan > Hiring's future starts: the signed offers (Offer accepted, not started) on approved seats,
+ * one per req (C37). Whether a seat with an offer is an approved head reads its rows, kind and
+ * planned start, not who holds it (Filled and Open seats are both approved heads).
  */
 const HIRING_ACCEPTED = uses(SEAT_ROWS, SEAT_KIND, PLANNED_START, ['reqs.reqId'])
 
 /**
- * Plan > Hiring's open to hire: its seats, current heads and accepted starts. (The starts count one
- * per req ID; the ID is Accepted starts' own lineage, `HIRING_ACCEPTED`, as My team's probe reads
- * the tile.)
+ * Plan > Hiring's open to hire: its seats, current heads, future starts and moves in. (The starts
+ * count one per req ID; the ID is Future starts' own lineage, `HIRING_ACCEPTED`, as My team's probe
+ * reads the tile.)
  */
 const HIRING_OPEN = uses(HIRING_SEATS, PEOPLE)
 
@@ -118,9 +118,10 @@ const LEAVERS = [
 const HIRING_FLOWS = uses(HIRES, LEAVERS)
 
 /**
- * The forecast's expected starts and modeled exits, in heads (6.7): the seats and their holders,
- * the reqs that time a start and the offers that fix one, freezes by org and dates, the approved
- * requests that reopen or end a seat, and the fill and attrition assumptions.
+ * The forecast's modeled exits, in heads (6.7): the seats and their holders, the reqs that time a
+ * start and the offers that fix one (the band cohort's exits run from its starts), freezes by org
+ * and dates, the approved requests that reopen or end a seat, and the fill and attrition
+ * assumptions. Plan > Hiring never reads the forecast's starts (C37).
  */
 const HIRING_FORECAST = uses(
   F.seat,
@@ -206,9 +207,9 @@ export const FIGURE = {
   hiringSeats: HIRING_SEATS,
   /** Current heads, and heads at closed month-ends: each employee once, people not in plan included. */
   hiringHeads: PEOPLE,
-  /** Accepted starts: the offers at Offer accepted on approved seats, by their start dates. */
+  /** Future starts: the signed offers on approved seats, by their start dates (C37). */
   hiringAccepted: HIRING_ACCEPTED,
-  /** Open to hire: approved seats by the quarter end, less current heads and accepted starts. */
+  /** Open to hire: approved seats by the quarter end, less current heads, future starts and moves in. */
   hiringOpen: HIRING_OPEN,
   /** Hires by month: the worker row that starts on its hire date, into a seat in scope. */
   hiringHires: HIRES,
@@ -220,8 +221,16 @@ export const FIGURE = {
   hiringExits: HIRING_EXITS,
   /** The quarter table: every row of it. */
   hiringQuarters: uses(HIRING_OPEN, HIRING_ACCEPTED, HIRING_FLOWS, HIRING_EXITS),
-  /** Hiring velocity: the closed months' hires and exits, then the forecast's starts and expected exits. */
-  hiringVelocity: uses(HIRING_FLOWS, HIRING_FORECAST),
+  /**
+   * Hiring velocity: the closed months' hires and exits, then the months ahead's future starts (the
+   * signed offers by start month, C37) and expected exits.
+   */
+  hiringVelocity: uses(HIRING_FLOWS, HIRING_ACCEPTED, HIRING_EXITS),
+  /**
+   * Hires in the last 3 months by department and location (C37): the hires, and the department and
+   * location of the seat each was hired into.
+   */
+  hiringRecent: uses(HIRES, ['positions.department', 'positions.location']),
   /** Attrition in heads: exits over the trailing closed months against the heads at their month-ends. */
   hiringAttrition: uses(LEAVERS, PEOPLE),
   /** Months to close: open to hire against the net hiring pace. */

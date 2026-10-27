@@ -1,7 +1,8 @@
 /**
- * Plan > Hiring's 16 metrics in each mode's own words (docs/PLAN.md 9.7 "Metrics" and "Privacy", 12,
- * 14.2; the hiring freeze, homes-help): the module is heads only, so no hiring metric needs a
- * per-mode wording. Every mode shows all 16 and reads them exactly as the catalog writes them
+ * Plan > Hiring's 18 metrics in each mode's own words (docs/PLAN.md 9.7 "Metrics" and "Privacy", 12,
+ * 14.2; the hiring freeze, homes-help; C37 added Moves in by quarter end and Hires in the last 3
+ * months): the module is heads only, so no hiring metric needs a
+ * per-mode wording. Every mode shows all 18 and reads them exactly as the catalog writes them
  * (`metricsInMode` gives the catalog's own definition and formula), none carries a Guard class or a
  * money unit, none is hidden in Manager mode or by the rounded modes, and no word of theirs names a
  * pay field, an amount kind or leave (no "leave" in anything Manager or Finance mode reads).
@@ -23,8 +24,8 @@ const AMOUNT_WORDS =
   /\b(cost|costs|costed|salary|salaries|pay|band estimate|offer amount|sign-on|relocation|agency fee|bonus|usd|fx|leave)\b|[$€£¥₹₪]/i
 
 describe('the hiring metrics in every mode', () => {
-  it('are 16, every one in the catalog with a heads unit', () => {
-    expect(HIRING_METRIC_IDS).toHaveLength(16)
+  it('are 18, every one in the catalog with a heads unit', () => {
+    expect(HIRING_METRIC_IDS).toHaveLength(18)
     for (const id of HIRING_METRIC_IDS) {
       const d = CATALOG.byId.get(id)
       expect(d, id).toBeDefined()

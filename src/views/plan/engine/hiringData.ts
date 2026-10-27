@@ -1,5 +1,5 @@
 /**
- * What Plan > Hiring reads from the context (docs/PLAN.md 9.7, change C36), once per analytics
+ * What Plan > Hiring reads from the context (docs/PLAN.md 9.7, changes C36 and C37), once per analytics
  * context: the engine's input (src/plan/engine/hiring.ts `HiringInput`: dates, IDs and head counts
  * only) and, beside it, the records its drills open (worker rows, reqs, the forecast's seats). Pure.
  *
@@ -11,7 +11,8 @@
  *    shared plan state, so every version the picker shows reads the same seats (H3).
  *  - A seat's planned start is the one the approved-head test reads (versions.ts `seatDetailOn`: the
  *    row's start, or for a seat Open after an exit its replacement's start); its accepted start is
- *    the req at stage Offer accepted that nobody has started on.
+ *    the signed offer's start: the req at stage Offer accepted that nobody has started on. Only these
+ *    are future starts (C37): no forecast or modeled start, no Open or Planned seat without one.
  *  - A seat's last approved day: the day before the first of its later rows (to the year end) from
  *    which it is no approved head (an approved Elimination, Trade, On hold or move out written ahead
  *    of time); an Eliminated row ends its seat the day after its last day (R34).
@@ -34,9 +35,9 @@
  *    seat from its effective date (review HN-5), so each scope reads what it will read once the HRIS
  *    records the move: in effect, the mover counts in current heads on the receiving seat (which
  *    counts as Filled) and not on the held seat; ahead, a move out of the scope is a known exit and a
- *    move into it an accepted start that is not an offer (a move in, `HiringMoveIn`). A move the HRIS
- *    dates ahead into a seat in scope from outside it is a move in too. A move inside the scope moves
- *    nothing. A request 8.4 rule 3 hides from the viewer is never read this way.
+ *    move into it a move in (`HiringMoveIn`: M(q), its own row since C37, never a future start). A
+ *    move the HRIS dates ahead into a seat in scope from outside it is a move in too. A move inside
+ *    the scope moves nothing. A request 8.4 rule 3 hides from the viewer is never read this way.
  *  - Heads at a closed month-end are the month's close where the plan has one (`closeHeadsIn`, as
  *    Plan > Overview's heads by month), else the scope's employees active on that month-end (the
  *    months before the first close in the trailing 12, and the end of a quarter that is over but not
@@ -46,8 +47,9 @@
  *    open months (review HN-10), each from the forecast's flows.
  *  - The forecast months are the Working forecast's months after that last close (projected, and any
  *    closed month after the as-of date) up to the shown fiscal year's last month
- *    (src/views/forecast/engine/run.ts `projectedMonths`), with the scope's expected starts and
- *    modeled exits in heads (src/views/forecast/engine/heads.ts `forecastFlows`), never a cost part.
+ *    (src/views/forecast/engine/run.ts `projectedMonths`), with the scope's modeled exits in heads
+ *    (src/views/forecast/engine/heads.ts `forecastFlows`), never a cost part and never its expected
+ *    starts (C37: the months ahead show signed offers only).
  *    For a later fiscal year (FY28 Working) they are the months its own Working forecast projects,
  *    and before its grid (FY28 Working's starts in April 2027) the as-of year's Working forecast's
  *    open months, so expected exits run from the as-of date (H5) and the velocity has no gap between
@@ -81,6 +83,7 @@ import {
   type HiringForecastMonth,
   type HiringHeadsAt,
   type HiringInput,
+  type HiringMove,
   type HiringOffer,
   type HiringPerson,
   type HiringSeat,
@@ -109,8 +112,8 @@ export interface HiringPersonRow {
 
 /**
  * A move into a seat in scope from outside it that has not started (review HN-5): an approved
- * internal move the HRIS has not recorded, or one the HRIS dates ahead. It counts in S(q) beside the
- * accepted offers (an accepted start that is not an offer), under its own ID (`move:<person>|<day>`).
+ * internal move the HRIS has not recorded, or one the HRIS dates ahead. It counts in M(q), moves in
+ * by the quarter end (C37), never in S(q)'s future starts, under its own ID (`move:<person>|<day>`).
  */
 export interface HiringMoveIn {
   id: string
@@ -136,9 +139,9 @@ export interface HiringPrep {
   exits: ReadonlyMap<string, HiringPersonRow>
   /** The people behind each month-end's heads (`input.headsAt`). */
   headsAt: ReadonlyMap<Month, readonly HiringPersonRow[]>
-  /** Accepted offers by req ID, as known on the as-of date. */
+  /** Signed offers (accepted, not started) by req ID, as known on the as-of date. */
   offers: ReadonlyMap<string, ReqRow>
-  /** Moves into the scope that have not started, by their S(q) ID. */
+  /** Moves into the scope that have not started, by their M(q) ID. */
   moves: ReadonlyMap<string, HiringMoveIn>
   /** The forecast's flows by month (heads), or null with no Working forecast. */
   flows: ReadonlyMap<Month, MonthFlows> | null
@@ -147,10 +150,10 @@ export interface HiringPrep {
 /** An event's key: the person and the day, so each stint of a rehire is its own hire and exit. */
 export const eventKey = (personId: string, on: ISODate): string => `${personId}|${on}`
 
-/** A move in's S(q) ID. */
+/** A move in's M(q) ID. */
 export const moveInId = (personId: string, start: ISODate): string => `move:${personId}|${start}`
 
-/** Whether an S(q) ID is a move in rather than a req (a req's ID can be blank in the data). */
+/** Whether an ID is a move in rather than a req (a req's ID can be blank in the data). */
 export const isMoveIn = (id: string | null | undefined): boolean =>
   typeof id === 'string' && id.startsWith('move:')
 
@@ -549,8 +552,10 @@ export const hiringPrepOf = perContext((ctx: AnalyticsContext): HiringPrep => {
     )
     if (employed) addMove(w.employeeId, seat, start)
   }
-  for (const m of moves.values())
-    offerList.push({ reqId: m.id, positionId: m.positionId, startDate: m.start })
+  // Moves in are M(q), never future starts (C37): S(q) holds signed offers only.
+  const moveList: HiringMove[] = [...moves.values()]
+    .map((m) => ({ moveId: m.id, positionId: m.positionId, startDate: m.start }))
+    .sort((a, b) => (a.moveId < b.moveId ? -1 : a.moveId > b.moveId ? 1 : 0))
   offerList.sort((a, b) => (a.reqId < b.reqId ? -1 : a.reqId > b.reqId ? 1 : 0))
 
   const people: HiringPerson[] = [...current.values()]
@@ -605,7 +610,8 @@ export const hiringPrepOf = perContext((ctx: AnalyticsContext): HiringPrep => {
   const forecast: HiringForecastMonth[] = []
   for (const m of open?.months ?? []) {
     const f = open?.flows.get(m)
-    forecast.push({ month: m, starts: f?.starts ?? 0, modeledExits: f?.modeledExits ?? 0 })
+    // Modeled exits only: no forecast start reaches Plan > Hiring (C37).
+    forecast.push({ month: m, modeledExits: f?.modeledExits ?? 0 })
   }
 
   const input: HiringInput = {
@@ -615,6 +621,7 @@ export const hiringPrepOf = perContext((ctx: AnalyticsContext): HiringPrep => {
     seats: [...seats.values()],
     people,
     offers: offerList,
+    moves: moveList,
     hires: hireEvents,
     exits: exitEvents,
     headsAt,
@@ -653,6 +660,7 @@ function onlyKeys(input: HiringInput): HiringInput {
     seats: input.seats.map((x) => pick(x, K.seat)),
     people: input.people.map((x) => pick(x, K.person)),
     offers: input.offers.map((x) => pick(x, K.offer)),
+    moves: input.moves.map((x) => pick(x, K.move)),
     hires: input.hires.map((x) => pick(x, K.event)),
     exits: input.exits.map((x) => pick(x, K.event)),
     headsAt: input.headsAt.map((x) => pick(x, K.headsAt)),

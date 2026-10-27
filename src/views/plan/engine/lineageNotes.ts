@@ -371,4 +371,6 @@ export const HIRING_LINEAGE_NOTES: Readonly<Record<string, readonly LineageNote[
   'plan-hiring-quarters': [START, END, KIND, ELIMINATED_END, REQ_AS_OF, OPENED, FREEZES_WHOLE],
   'plan-hiring-open': [START, END, KIND, ELIMINATED_END, REQ_AS_OF],
   'plan-hiring-velocity': [START, END, KIND, ELIMINATED_END, REQ_AS_OF, OPENED, FREEZES_WHOLE],
+  // C37: the hires of the last 3 months, by the department and location of the seat hired into.
+  'plan-hiring-recent': [START, KIND, TREE],
 }

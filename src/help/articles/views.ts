@@ -68,7 +68,7 @@ export const VIEW_ARTICLES: readonly HelpArticle[] = [
       {
         ul: [
           'The hero: heads vs plan, your unit’s actual heads at the last closed month-end against plan heads.',
-          'Key figures: heads vs plan, hires year to date against plan, openings past target start, open to hire this fiscal year (approved heads less current heads and the accepted starts to come, from [Plan > Hiring](route:plan.hiring)), the year-end heads forecast against target, and full-year cost against the comparison, rounded down to $0.1M per team.',
+          'Key figures: heads vs plan, hires year to date against plan, openings past target start, open to hire this fiscal year (approved heads less current heads and the future starts to come, from [Plan > Hiring](route:plan.hiring)), the year-end heads forecast against target, and full-year cost against the comparison, rounded down to $0.1M per team.',
           'Needs attention: requests waiting 5 or more days, managers who have not sent their ranked asks, Planned seats near their start with no req, and reconciliation exceptions in the unit.',
           'My list: the unit’s open requests by the step they wait on, the longest waiting first.',
           'Then openings by stage, forecast heads by month, and your latest changes to the unit’s seats in Working, with the ways to make them on [Plan > Positions](route:plan.positions) and [Plan > Transfers](route:plan.transfers).',
@@ -160,7 +160,7 @@ export const VIEW_ARTICLES: readonly HelpArticle[] = [
         p: 'The hero is Left to fill: the Open and Planned seats in your allocation. The bar under it splits them into Open, requested (Planned seats with a req or a Start recruiting request) and left to request (Planned seats with neither). The parts add up to the number, and each part opens its own seats.',
       },
       {
-        p: 'Under it, Open to hire comes from [Plan > Hiring](route:plan.hiring): approved heads at the fiscal year end, less current heads, less the accepted starts due by then. Left to fill counts seats; Open to hire counts heads, so a person in your team who is not in plan counts against it. Below 0 it reads "Over by" and is never a hiring target.',
+        p: 'Under it, Open to hire comes from [Plan > Hiring](route:plan.hiring): approved heads at the fiscal year end, less current heads, less the future starts due by then. Left to fill counts seats; Open to hire counts heads, so a person in your team who is not in plan counts against it. Below 0 it reads "Over by" and is never a hiring target.',
       },
       { h: 'Key figures' },
       {

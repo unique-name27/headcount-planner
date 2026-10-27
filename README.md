@@ -51,13 +51,16 @@ Everything stays in the browser: there is no server, and files you import never 
   Open to hire tile also sits on the Unit plan and Rollup vs target homes, and under Left to fill on
   My team. Closed quarters show their actual heads, hires and exits; the quarters ahead show:
   - Approved heads by quarter end `A(q)`: approved seats whose first head day (now when Filled, else
-    the accepted start, else the planned or target start) is on or before the quarter end, and that
-    are still approved heads then.
+    the signed offer's or move's start, else the planned or target start) is on or before the
+    quarter end, and that are still approved heads then.
   - Current heads `H`: active HRIS employees on the as-of date, people on leave and people not in
     plan included.
-  - Accepted starts by quarter end `S(q)`: accepted offers (dates only) starting after the as-of
-    date and by the quarter end, and internal moves into the scope that have not started.
-  - Open to hire `O(q) = A(q) − H − S(q)`; below 0 it reads "Over by n" and is never a target.
+  - Future starts by quarter end `S(q)`: people with a signed offer (dates only) who have not started
+    yet, starting after the as-of date and by the quarter end. Only signed offers count: never a
+    forecast or modeled start, and never an Open or Planned seat without one.
+  - Moves in by quarter end `M(q)`: approved internal moves into the scope that have not started, a
+    row of their own that shows only when it is not 0.
+  - Open to hire `O(q) = A(q) − H − S(q) − M(q)`; below 0 it reads "Over by n" and is never a target.
   - New to hire in the quarter `O(q) − O(q−1)`; the first quarter ahead counts against open to hire
     on the day before it starts (open to hire now, for the quarter that holds the as-of date).
   - Expected exits by quarter end `E(q)`: known last days (the HRIS, seats an approved Elimination
@@ -65,10 +68,15 @@ Everything stays in the browser: there is no server, and files you import never 
     Manager's netted over the team alone.
   - To hire to reach plan `O(q) + E(q)`, and hires needed per month = to reach plan ÷ the
     month-ends left, against the 3-month hiring pace.
-  - Hiring velocity: hires and exits in each of the last 12 closed months, then the forecast's
-    months; hires and exits per month over the last 3 and 6 closed months; net pace = hires − exits
-    a month; attrition (heads) = exits over 12 closed months ÷ their average month-end heads; months
-    to close = this fiscal year's open to hire ÷ the net pace, while the net pace is above 0.
+  - Hiring velocity: hires and exits in each of the last 12 closed months, then each month ahead to
+    the fiscal year end with its future starts (signed offers by start month, whole people) and
+    expected exits; hires and exits per month over the last 3 and 6 closed months; net pace = hires −
+    exits a month; attrition (heads) = exits over 12 closed months ÷ their average month-end heads;
+    months to close = this fiscal year's open to hire ÷ the net pace, while the net pace is above 0.
+  - Hires in the last 3 months, by location and department: the hires of the last 3 closed months,
+    a row per department and location that had a hire, a column per month, the total and the hires
+    per month, sub-totals by department and by location, and a total that equals those months'
+    hires in the velocity chart. Every count opens the hires it counts.
 - **Exports**: every figure as CSV, Excel or a copy; a whole view as a workbook or a 16:9 deck; a long
   CSV; and Finance's FP&A load file. Each carries a header (version and lock, comparison, as-of date,
   proration, rates, cost definition, the mode it was made in, filters and rounding) and, beside any

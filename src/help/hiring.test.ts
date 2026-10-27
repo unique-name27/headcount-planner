@@ -271,9 +271,21 @@ describe('the homes’ help names the tile where it is (9.7 Homes)', () => {
 
 describe('What’s new (the hiring note)', () => {
   const note = RELEASE_NOTES.find((n) => n.title === 'Hiring progress')
+  const c37 = RELEASE_NOTES.find((n) => n.title === 'Future starts and recent hires')
 
-  it('is the newest note, and every mode reads the tab’s items', () => {
-    expect(RELEASE_NOTES[0]).toBe(note)
+  it('follows the C37 note, and every mode reads the tab’s items', () => {
+    expect(RELEASE_NOTES[0]).toBe(c37)
+    expect(RELEASE_NOTES[1]).toBe(note)
+    for (const { name, access } of EVERY) {
+      const items =
+        releaseNotesIn(access).find((n) => n.title === 'Future starts and recent hires')?.items ?? []
+      expect(items.length, name).toBe(4)
+      expect(
+        items.some((t) => t.startsWith('Plan > Hiring counts future starts')),
+        name,
+      ).toBe(true)
+      for (const t of items) expect(t, name).not.toMatch(/accepted start|expected start/i)
+    }
     for (const { name, access } of EVERY) {
       const items = releaseNotesIn(access).find((n) => n.title === 'Hiring progress')?.items ?? []
       expect(

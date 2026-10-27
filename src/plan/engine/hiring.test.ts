@@ -1,9 +1,11 @@
 /**
- * Hiring progress (docs/PLAN.md 9.7, change C36; docs/CONTRACTS-HIRING.md readings H1 to H18): fixture
- * HG1 exactly, one case per function with a negative control, and the edge cases: negative open to
- * hire ("Over by n"), no closed month, a quarter with no seat, accepted starts on the as-of day and
- * after FY end, eliminated and On hold seats, a seat an approved internal move holds (SC-6), known
- * and modeled exits from the forecast engine (reused, never re-modeled), and FY28 shown.
+ * Hiring progress (docs/PLAN.md 9.7, changes C36 and C37; docs/CONTRACTS-HIRING.md readings H1 to H24
+ * and F1 to F8): fixture HG1 exactly, one case per function with a negative control, and the edge
+ * cases: negative open to hire ("Over by n"), no closed month, a quarter with no seat, future starts
+ * on the as-of day and after FY end, eliminated and On hold seats, a seat an approved internal move
+ * holds (SC-6), known and modeled exits from the forecast engine (reused, never re-modeled), FY28
+ * shown, and C37's future starts (signed offers only, never a modeled start or an Open seat without an
+ * offer) and moves in (HG8, M(q)).
  */
 import { describe, expect, it } from 'vitest'
 import { monthKey, shiftMonth } from '@/data/fiscal'
@@ -18,6 +20,7 @@ import {
   currentHeads,
   expectedExits,
   firstHeadDay,
+  futureStartsIn,
   type HiringInput,
   type HiringMonth,
   type HiringOffer,
@@ -33,6 +36,7 @@ import {
   hiringVelocity,
   monthsLeft,
   monthsToClose,
+  movesBy,
   neededPace,
   openSeatsBy,
   PACE_EPSILON,
@@ -49,8 +53,10 @@ import {
   HG4,
   HG5,
   HG6,
+  HG8,
   headsAt,
   hiringInput,
+  moveIn,
   offer,
   person,
   seat,
@@ -99,6 +105,14 @@ describe('HG1, the plan’s fixture (9.7), exactly', () => {
     })
     expect(t.openFyEnd).toBe(HG1.openFyEnd)
     expect(t.acceptedToCome).toBe(HG1.acceptedToCome)
+    // No move in (C37): M(q) is 0 in every quarter ahead, so O(q) = A(q) − H − S(q).
+    for (const n of [2, 3, 4] as const) {
+      expect(q(t, n).movesIn, `Q${n}`).toBe(HG1.movesIn)
+      expect(q(t, n).open, `Q${n}`).toBe(
+        (q(t, n).approved ?? 0) - t.heads.total - (q(t, n).accepted ?? 0) - (q(t, n).movesIn ?? 0),
+      )
+    }
+    expect(t.movesToCome).toBe(0)
   })
 
   it('O(Q2) = 6 − 7 − 0 = −1: over by 1, the person not in plan, never clamped', () => {
@@ -190,10 +204,19 @@ describe('HG1, the plan’s fixture (9.7), exactly', () => {
     expect(months.flatMap((m) => m.hireIds)).not.toContain('E-HG-13')
     const ahead = months.filter((m) => m.kind === 'forecast')
     expect(ahead.map((m) => m.month)).toEqual(HG1.input.forecast.map((f) => f.month))
-    // November: the forecast's starts as hires; E-HG-05's known exit plus the modeled exits.
+    expect(ahead.map((m) => m.month)).toEqual([...HG1.ahead.months])
+    // C37: the months ahead show future starts (the signed offer in October), whole people, and the
+    // expected exits (E-HG-05's known exit in November plus the modeled exits).
+    expect(ahead.map((m) => m.hires)).toEqual([...HG1.ahead.hires])
+    expect(ahead.map((m) => m.startIds)).toEqual(HG1.ahead.startIds.map((x) => [...x]))
+    expect(ahead.map((m) => m.exits)).toEqual([...HG1.ahead.exits])
     const nov = ahead.find((m) => m.month === '2026-11')
-    expect(nov).toMatchObject({ hires: 0.9, exits: 1.0625, exitIds: ['E-HG-05'], hireIds: [] })
-    expect(nov?.net).toBeCloseTo(0.9 - 1.0625, 12)
+    expect(nov).toMatchObject({ hires: 0, exits: 1.0625, exitIds: ['E-HG-05'], hireIds: [] })
+    expect(nov?.net).toBe(-1.0625)
+    // Every future start of the year is in a month ahead: they add up to S(FY end).
+    expect(ahead.reduce((a, m) => a + m.hires, 0)).toBe(t.acceptedToCome)
+    // Closed months carry no future start.
+    expect(actual.every((m) => (m.startIds ?? []).length === 0)).toBe(true)
   })
 })
 
@@ -363,6 +386,50 @@ describe('acceptedBy', () => {
   })
 })
 
+describe('futureStartsIn (C37)', () => {
+  const asOf = '2026-09-30'
+  const offers = [
+    offer('R-ASOF', 'P', '2026-09-30'),
+    offer('R-OCT', 'P', '2026-10-01'),
+    offer('R-OCT', 'P', '2026-10-01'),
+    offer('R-NOV', 'Q', '2026-11-30'),
+    offer('R-FY28', 'P', '2027-04-05'),
+  ]
+  it('counts the signed offers starting in the month, after the as-of date, one per req', () => {
+    expect(futureStartsIn(offers, asOf, '2026-10')).toEqual(['R-OCT'])
+    expect(futureStartsIn(offers, asOf, '2026-11')).toEqual(['R-NOV'])
+    expect(futureStartsIn(offers, asOf, '2027-03')).toEqual([])
+  })
+  it('a start on the as-of day has started: in no month ahead', () => {
+    expect(futureStartsIn(offers, asOf, '2026-09')).toEqual([])
+    // Negative control: the day after is a future start.
+    expect(futureStartsIn([offer('R-1', 'P', '2026-10-01')], asOf, '2026-10')).toEqual(['R-1'])
+  })
+  it('a mid-month as-of date counts only the rest of its month', () => {
+    const mid = '2026-10-15'
+    expect(
+      futureStartsIn([offer('A', 'P', '2026-10-15'), offer('B', 'P', '2026-10-16')], mid, '2026-10'),
+    ).toEqual(['B'])
+  })
+})
+
+describe('movesBy (C37)', () => {
+  const asOf = '2026-09-30'
+  const moves = [
+    moveIn('M-ASOF', 'P', '2026-09-30'),
+    moveIn('M-OCT', 'P', '2026-10-01'),
+    moveIn('M-OCT', 'P', '2026-10-01'),
+    moveIn('M-JAN', 'P', '2027-01-04'),
+  ]
+  it('counts the moves dated after the as-of date and on or before the end, one per move', () => {
+    expect(movesBy(moves, asOf, '2026-12-31')).toEqual(['M-OCT'])
+    expect(movesBy(moves, asOf, '2027-03-31')).toEqual(['M-OCT', 'M-JAN'])
+  })
+  it('a move on the as-of day is in effect, never ahead', () => {
+    expect(movesBy(moves, asOf, '2027-03-31')).not.toContain('M-ASOF')
+  })
+})
+
 describe('openSeatsBy', () => {
   const asOf = '2026-09-30'
   const seats = [
@@ -391,10 +458,10 @@ describe('expectedExits (H5)', () => {
     event('E-JAN', 'P', '2027-01-01'),
   ]
   const months = [
-    forecastMonth('2026-12', 0, 1.0484),
-    forecastMonth('2026-09', 0, 9),
-    forecastMonth('2026-10', 0, 0.0596),
-    forecastMonth('2027-01', 0, 0.5),
+    forecastMonth('2026-12', 1.0484),
+    forecastMonth('2026-09', 9),
+    forecastMonth('2026-10', 0.0596),
+    forecastMonth('2027-01', 0.5),
   ]
   it('known: last days after the as-of date and on or before the quarter end', () => {
     const e = expectedExits(exits, [], asOf, '2026-12-31')
@@ -420,7 +487,7 @@ describe('expected exits from the forecast engine (reused, never re-modeled)', (
   const f = forecast(F1.input)
   const asOf = F1.input.asOf
   const open = f.months.filter((m) => m.month > monthKey(asOf))
-  const months = open.map((m) => forecastMonth(m.month, m.starts, m.modeledExits))
+  const months = open.map((m) => forecastMonth(m.month, m.modeledExits))
   const exits = F1.input.workers
     .filter((w) => w.terminationDate != null)
     .map((w) => event(w.employeeId, w.positionId ?? null, w.terminationDate as ISODate))
@@ -1049,8 +1116,111 @@ function keysOf(x: unknown, out: Set<string> = new Set()): Set<string> {
   return out
 }
 
+/* ───────────── C37: future starts are signed offers only; moves in are M(q) ───────────── */
+
+describe('future starts count signed offers only (C37)', () => {
+  it('never count an Open seat without an offer, a Planned seat, or a move in', () => {
+    const r = hiringOf(HG1.input)
+    // P-HG-08 (Open, no offer) and the Planned P-HG-09 and P-HG-10 are open to hire, never future starts.
+    for (const n of [3, 4] as const) expect(q(r.table, n).acceptedIds).toEqual(['R-HG-07'])
+    expect(q(r.table, 4).openSeatIds).toEqual(['P-HG-08', 'P-HG-09', 'P-HG-10'])
+    // A seat's planned or target start in a month ahead adds no hire to it.
+    const nov = r.velocity.months.find((m) => m.month === '2026-11')
+    expect(nov?.hires).toBe(0)
+    // A move in is no future start, in the table or the months ahead.
+    const m = hiringOf(HG8.input)
+    expect(m.table.acceptedToCome).toBe(HG8.acceptedToCome)
+    for (const n of [3, 4] as const)
+      for (const id of q(m.table, n).acceptedIds) expect(id.startsWith('move:'), id).toBe(false)
+    expect(m.velocity.months.filter((x) => x.kind === 'forecast').map((x) => x.hires)).toEqual([
+      ...HG8.aheadHires,
+    ])
+  })
+
+  it('never read a modeled start: the forecast months carry modeled exits only', () => {
+    expect(Object.keys(forecastMonth('2026-10', 0.5)).sort()).toEqual(['modeledExits', 'month'])
+    // Control: an offer in a month ahead is a future start there.
+    const withOffer = hiringOf({
+      ...HG1.input,
+      offers: [...HG1.input.offers, offer('R-HG-08', 'P-HG-08', '2026-11-02')],
+    })
+    expect(withOffer.velocity.months.find((m) => m.month === '2026-11')?.hires).toBe(1)
+  })
+})
+
+describe('HG8: moves in, M(q) (C37)', () => {
+  const r = hiringOf(HG8.input)
+  const t = r.table
+
+  it('O(Q3) = 4 − 2 − 1 − 1 = 0: the move in is its own term, not a future start', () => {
+    const c = q(t, 3)
+    expect([c.approved, t.heads.total, c.accepted, c.movesIn, c.open]).toEqual([
+      HG8.q3.approved,
+      2,
+      HG8.q3.accepted,
+      HG8.q3.movesIn,
+      HG8.q3.open,
+    ])
+    expect(c.acceptedIds).toEqual(HG8.q3.acceptedIds)
+    expect(c.moveInIds).toEqual(HG8.q3.moveInIds)
+    expect(c.openSeatIds).toEqual(HG8.q3.openSeatIds)
+    expect(c.seatView).toMatchObject(HG8.q3.seatView)
+    expect(c.newToHire).toBe(HG8.q3.newToHire)
+  })
+
+  it('O(Q4) = 6 − 2 − 1 − 3 = 0; the seat view names the move onto a Filled seat', () => {
+    const c = q(t, 4)
+    expect([c.approved, c.accepted, c.movesIn, c.open]).toEqual([
+      HG8.q4.approved,
+      HG8.q4.accepted,
+      HG8.q4.movesIn,
+      HG8.q4.open,
+    ])
+    expect(c.moveInIds).toEqual(HG8.q4.moveInIds)
+    expect(c.openSeatIds).toEqual(HG8.q4.openSeatIds)
+    expect(c.seatView).toMatchObject(HG8.q4.seatView)
+    expect(c.seatView?.otherStartIds).toEqual(HG8.q4.otherStartIds)
+    // The seat view works out to open to hire.
+    const sv = c.seatView
+    expect(
+      (sv?.openSeats ?? 0) -
+        (sv?.notInPlan ?? 0) -
+        (sv?.elsewhere ?? 0) -
+        (sv?.inEndedSeats ?? 0) -
+        (sv?.otherStarts ?? 0) +
+        (sv?.rest ?? 0),
+    ).toBe(c.open)
+    expect(c.toReachPlan).toBe(HG8.q4.toReachPlan)
+    expect([t.openNow, t.openFyEnd, t.acceptedToCome, t.movesToCome]).toEqual([
+      HG8.openNow,
+      HG8.openFyEnd,
+      HG8.acceptedToCome,
+      HG8.movesToCome,
+    ])
+  })
+
+  it('negative control: without the moves the seats they take are open to hire', () => {
+    const bare = hiringTable({ ...HG8.input, moves: [] }, null)
+    expect(q(bare, 3).open).toBe(HG8.withoutMoves.q3Open)
+    expect(q(bare, 4).open).toBe(HG8.withoutMoves.q4Open)
+    expect(q(bare, 4).openSeatIds).toEqual([...HG8.withoutMoves.q4OpenSeatIds])
+    expect(q(bare, 4).movesIn).toBe(0)
+  })
+
+  it('counts the moves on the day before a later year starts (new to hire, HN-4)', () => {
+    const fy28 = hiringTable({ ...HG8.input, fiscalYear: 'FY28' as HiringInput['fiscalYear'] }, null)
+    // On 31 Mar 2027: 6 approved − 2 heads − 1 future start − 3 moves in = 0.
+    expect(fy28.openBefore).toEqual({ on: '2027-03-31', open: 0 })
+  })
+
+  it('history quarters and a past year carry no move', () => {
+    expect([q(t, 1).movesIn, q(t, 2).movesIn]).toEqual([null, null])
+    expect(q(t, 1).moveInIds).toEqual([])
+  })
+})
+
 describe('pure and heads only', () => {
-  const inputs = [HG1.input, HG2.input, HG3.input, HG4.input, HG5.input, HG6.input]
+  const inputs = [HG1.input, HG2.input, HG3.input, HG4.input, HG5.input, HG6.input, HG8.input]
 
   it('never mutates its input (frozen), and the same input gives the same output', () => {
     for (const input of inputs) {

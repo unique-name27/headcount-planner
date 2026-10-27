@@ -1,11 +1,13 @@
 /**
- * Plan > Hiring's model (docs/PLAN.md 9.7, change C36), built by `planHiringModel` (./hiringTab.ts)
- * from the engine (src/plan/engine/hiring.ts `hiringOf`) over the context's input (./hiringData.ts):
- * the six key figures, open to hire by quarter (the table and its small bar chart), hiring velocity
- * with its pace note, and the readout. Heads only, in every mode.
+ * Plan > Hiring's model (docs/PLAN.md 9.7, changes C36 and C37), built by `planHiringModel`
+ * (./hiringTab.ts) from the engine (src/plan/engine/hiring.ts `hiringOf`) over the context's input
+ * (./hiringData.ts): the six key figures, open to hire by quarter (the table and its small bar chart),
+ * hiring velocity with its pace note, the hires of the last 3 closed months by department and
+ * location, and the readout. Heads only, in every mode.
  *
  * Counted numbers drill to exactly their rows (./hiringDrills.ts: seats, people where the mode lists
- * them and else the seats they hold, accepted offers with dates only); formulas and modeled numbers
+ * them and else the seats they hold, future starts as signed offers with dates only, moves in as the
+ * seats they move into); formulas and modeled numbers
  * (open to hire, new to hire, expected exits, to reach plan, the paces, attrition, months to close)
  * open a calculation card whose last step is the value. The six tiles open their cards, as 9.7's
  * screen asks; a counted card lists its records too.
@@ -39,9 +41,21 @@
  *    cards ending at 0; a quarter over with a month not closed reads "(ended)" (V8).
  *  - With no 3 closed months, the paces and months to close say the pace needs them, and never that
  *    exits outrun hires (V9); these tiles open their cards with no value (`calcWhenEmpty`, V16).
- *  - Accepted starts with a move into the scope among them open a card, since a move holds no req
- *    (V5); a finding in a year that does not hold the as-of date names the year (V4).
+ *  - A finding in a year that does not hold the as-of date names the year (V4).
  *  - Hires and exits are read by event (person and day), so a rehire's stints list apart (V3).
+ *
+ * Readings change C37 took (26 Oct 2026, docs/CONTRACTS-HIRING.md 5.3):
+ *  - "Accepted starts" are Future starts: signed offers only, by start date. A move into the scope is
+ *    no future start: it is its own row, Moves in by quarter end, which shows only when a quarter
+ *    ahead holds one, and so do its term in the open to hire card, note and tile formula. Its cells
+ *    open the seats the people move into (a move holds no req), in every mode.
+ *  - The velocity's months ahead show the future starts by start month (whole people, opening their
+ *    offers) and the expected exits; no forecast or modeled start shows anywhere in the tab.
+ *  - Hires in the last 3 months, by location and department: the hires of the last 3 closed months
+ *    (the velocity's), each under the department and location of the seat it was hired into on the
+ *    hire date, a row per department and location with a hire, then each department's sub-total
+ *    after its rows, the locations' sub-totals and the total. Every count opens the hires it counts
+ *    (the seats they were hired into in Manager mode); hires per month opens its card.
  */
 import { findingsInMode, kpisInMode } from '@/access/numbers'
 import type { Column } from '@/charts/types'
@@ -49,7 +63,7 @@ import type { Finding, FindingPosition, Kpi, Severity } from '@/components/types
 import type { AnalyticsContext } from '@/data/context'
 import { fiscalYearOf, monthEnd } from '@/data/fiscal'
 import type { FieldRef } from '@/data/quality/fieldRef'
-import type { ISODate, Month } from '@/data/schema'
+import type { ISODate, Month, PositionRow } from '@/data/schema'
 import { type CalcInput, type CalcSpec, type CalcStep, calcInput, calcStep } from '@/drill/calc'
 import { asOfLine, subtitleOf } from '@/drill/subtitle'
 import type { DrillSpec } from '@/drill/types'
@@ -70,23 +84,30 @@ import type { Position } from '@/plan/types'
 import type { FigureData } from '../../types'
 import { ID } from '../metrics'
 import { monthLabel } from './base'
+import { seatsOf } from './core'
 import { positionsFor } from './drill'
 import { tagFindings, tagKpis } from './drillUses'
 import { PLAN_FIGURES } from './figures'
 import { type HiringPersonRow, type HiringPrep, hiringPrepOf, isMoveIn } from './hiringData'
 import { eventRows, listsPeople, offersDrill, peopleDrill, peopleOf, seatsDrill } from './hiringDrills'
 import {
+  ALL_DEPARTMENTS,
+  ALL_LOCATIONS,
   behindByGap,
   HIRING_KPIS,
   HIRING_ROWS,
   HISTORY_NOTE,
   type HiringOpenRow,
   type HiringQuarterRow,
+  type HiringRecentKind,
+  type HiringRecentRow,
   type HiringRowKey,
   type HiringVelocityRow,
   hiringOpenLabel,
+  NO_DEPARTMENT,
   NOT_CLOSING_TEXT,
   ON_PACE_TEXT,
+  ONLY_WHEN_NOT_ZERO,
   overByText,
   type PlanHiring,
   QUARTER_KEYS,
@@ -119,6 +140,10 @@ export const NO_HEADS_NOTE = 'Heads at a quarter end show once its months are cl
 export const yearOverText = (fy: string): string => `${fy} is over`
 /** The pace card's records: each one a third of the pace. */
 const PACE_RECORDS_NOTE = 'Each counts as 1/3: the pace is a monthly average over 3 closed months.'
+/** A seat with no location (the recent hires table's words for it). */
+export const NO_LOCATION = 'No location'
+/** The future starts' records note: signed offers, dates only. */
+const OFFERS_NOTE = 'Signed offers show their dates only: an offer’s terms come from the recruiting system.'
 
 const RANK: Record<Severity, number> = { critical: 0, warning: 1, info: 2, good: 3 }
 const LIST_CAP = 50
@@ -141,6 +166,8 @@ interface Built {
   over: boolean
   /** The year shown does not hold the as-of date: findings name it ("Q1 FY28 end"). */
   otherYear: boolean
+  /** A quarter ahead holds a move in (C37): only then do the moves' row, term and step show. */
+  anyMoves: boolean
   uses: (...groups: readonly (readonly FieldRef[])[]) => FieldRef[]
 }
 
@@ -198,8 +225,9 @@ function card(
 const SOURCE = {
   seats: 'Approved seats in Working, in scope',
   people: 'Employees in the HRIS on the as-of date, in scope',
-  offers: 'Reqs at Offer accepted, not started (dates only)',
-  forecast: 'The Working forecast, in heads',
+  offers: 'Signed offers: reqs at Offer accepted, not started (dates only)',
+  moves: 'Approved internal moves into the scope, not started',
+  forecast: 'The Working forecast’s modeled exits, in heads',
   hris: 'Hire dates and last days in the HRIS, in scope',
 } as const
 
@@ -244,11 +272,22 @@ function seatTerms(sv: HiringSeatView): SeatTerm[] {
     'people in seats that end',
     'People in seats that stop being approved heads by the quarter end',
   )
+  // Future starts and moves in on a seat that is not open (C37: a move in is no future start).
+  const moves = sv.otherStartIds.filter((id) => isMoveIn(id)).length
+  const offers = sv.otherStarts - moves
+  const starts = andList([
+    ...(offers ? [plural(offers, 'future start')] : []),
+    ...(moves ? [plural(moves, 'move in', 'moves in')] : []),
+  ])
   less(
     sv.otherStarts,
-    `${plural(sv.otherStarts, 'accepted start')} on a seat that is not open`,
-    'accepted starts on seats that are not open',
-    'Accepted starts on seats that are not open (a Filled seat, or one that ends)',
+    `${starts} on a seat that is not open`,
+    moves
+      ? 'future starts and moves in on seats that are not open'
+      : 'future starts on seats that are not open',
+    moves
+      ? 'Future starts and moves in on seats that are not open (a Filled seat, or one that ends)'
+      : 'Future starts on seats that are not open (a Filled seat, or one that ends)',
   )
   if (sv.rest > 0)
     out.push({
@@ -296,10 +335,14 @@ function seatsOutOf(b: Built, q: HiringQuarter): { ended: number; late: number }
   return { ended, late }
 }
 
-/** Accepted starts that are moves into the scope, not offers (review HN-5). */
-const movesIn = (ids: readonly string[]): number => ids.filter((id) => isMoveIn(id)).length
+/** What a count above approved heads is made of: "current heads and future starts", with moves in when there are any. */
+const aboveWords = (moves: number): string =>
+  moves ? 'current heads, future starts and moves in' : 'current heads and future starts'
 
-/** Open to hire at a quarter end: approved heads − current heads − accepted starts, with the seat view. */
+/**
+ * Open to hire at a quarter end: approved heads − current heads − future starts (− moves in when the
+ * quarter holds any, C37), with the seat view.
+ */
 function openCard(b: Built, q: HiringQuarter, title = `Open to hire by ${quarterEndLabel(q)}`): CalcSpec {
   const t = b.r.table
   const H = t.heads
@@ -308,7 +351,8 @@ function openCard(b: Built, q: HiringQuarter, title = `Open to hire by ${quarter
   const terms = sv ? seatTerms(sv) : []
   const exact = value != null && q.openSeats === value && value > 0
   const out = seatsOutOf(b, q)
-  const moves = movesIn(q.acceptedIds)
+  const moves = q.movesIn ?? 0
+  const noStart = moves ? 'with no future start or move in' : 'with no future start'
   const dateOf = formatDate(q.end)
   return card(b, {
     title,
@@ -330,7 +374,7 @@ function openCard(b: Built, q: HiringQuarter, title = `Open to hire by ${quarter
       ...(out.late && q === b.end
         ? [
             calcInput(
-              `Seats whose accepted start is after ${formatDate(b.h.fyEnd)} (not counted)`,
+              `Seats whose signed offer or move in starts after ${formatDate(b.h.fyEnd)} (not counted)`,
               out.late,
               'int',
               SOURCE.offers,
@@ -339,9 +383,9 @@ function openCard(b: Built, q: HiringQuarter, title = `Open to hire by ${quarter
         : []),
       calcInput('Current heads', H.total, 'int', SOURCE.people),
       calcInput('People in approved seats', H.inApprovedSeats, 'int', SOURCE.people),
-      calcInput('Accepted starts by the quarter end', q.accepted, 'int', SOURCE.offers),
-      ...(moves ? [calcInput('Moves in among them (not offers)', moves, 'int', SOURCE.seats)] : []),
-      calcInput('Seat view: open seats with no accepted start', q.openSeats, 'int', SOURCE.seats),
+      calcInput('Future starts by the quarter end', q.accepted, 'int', SOURCE.offers),
+      ...(moves ? [calcInput('Moves in by the quarter end', moves, 'int', SOURCE.moves)] : []),
+      calcInput(`Seat view: open seats ${noStart}`, q.openSeats, 'int', SOURCE.seats),
       ...terms.map((x) => calcInput(x.input, x.value, 'int', SOURCE.people)),
     ],
     steps: [
@@ -356,8 +400,10 @@ function openCard(b: Built, q: HiringQuarter, title = `Open to hire by ${quarter
           ]
         : []),
       calcStep(
-        'Open to hire = approved heads − current heads − accepted starts',
-        `${plain(q.approved)} − ${plain(H.total)} − ${plain(q.accepted)}`,
+        moves
+          ? 'Open to hire = approved heads − current heads − future starts − moves in'
+          : 'Open to hire = approved heads − current heads − future starts',
+        `${plain(q.approved)} − ${plain(H.total)} − ${plain(q.accepted)}${moves ? ` − ${plain(moves)}` : ''}`,
         value,
         'int',
       ),
@@ -365,10 +411,10 @@ function openCard(b: Built, q: HiringQuarter, title = `Open to hire by ${quarter
     rows: exact ? seatsDrill(b.h, `Open seats by ${quarterEndLabel(q)}`, q.openSeatIds) : null,
     note:
       value != null && value < 0
-        ? `${overByText(value)}: current heads and accepted starts are above approved heads. It is not a hiring target.`
+        ? `${overByText(value)}: ${aboveWords(moves)} are above approved heads. It is not a hiring target.`
         : `The seat view: ${seatViewNote(sv, q.openSeats ?? 0)
             .replace(/^No open seat/, 'no open seat')
-            .replace(/^(\d[\d,]* open seats?)/, '$1 with no accepted start')}.`,
+            .replace(/^(\d[\d,]* open seats?)/, `$1 ${noStart}`)}.`,
     uses: b.uses(FIGURE.hiringOpen),
   })
 }
@@ -405,7 +451,7 @@ function newCard(b: Built, q: HiringQuarter): CalcSpec {
         ? fromNow
           ? calcInput('Open to hire now (approved heads now − current heads)', before, 'int', SOURCE.seats)
           : calcInput(
-              `Open to hire on ${formatDate(from.on)}, the day before the quarter (approved heads then − current heads − accepted starts by then)`,
+              `Open to hire on ${formatDate(from.on)}, the day before the quarter (approved heads then − current heads − ${b.anyMoves ? 'future starts and moves in' : 'future starts'} by then)`,
               before,
               'int',
               SOURCE.seats,
@@ -556,7 +602,7 @@ function toReachCard(b: Built, q: HiringQuarter): CalcSpec {
       ),
     ],
     note: over
-      ? `${overByNum1(q.toReachPlan as number)}: current heads and accepted starts stay above approved heads after the expected exits. It is not a hiring target.`
+      ? `${overByNum1(q.toReachPlan as number)}: ${aboveWords(q.movesIn ?? 0)} stay above approved heads after the expected exits. It is not a hiring target.`
       : 'The expected exits are the backfills it takes to stay at approved heads.',
     uses: b.uses(FIGURE.hiringOpen, FIGURE.hiringExits),
   })
@@ -711,58 +757,61 @@ function headsSplitNote(b: Built): string {
   return `${andList(parts)}.`
 }
 
-/** Accepted starts: their reqs (dates only), or a card when moves in are among them (they hold no req, HN-5). */
-function acceptedOpens(b: Built, ids: readonly string[], title: string): Opens {
-  const moves = movesIn(ids)
-  const offerIds = ids.filter((id) => !isMoveIn(id))
-  if (!moves)
-    return {
-      drill: () => offersDrill(b.h, title, offerIds, { uses: b.uses(FIGURE.hiringAccepted) }),
-      calc: null,
-    }
-  return { drill: null, calc: () => acceptedCard(b, ids, title, ID.hiringAcceptedStarts) }
+/** Future starts: their signed offers, as reqs with dates only (C37: signed offers only, never a move in). */
+function futureStartsOpens(b: Built, ids: readonly string[], title: string, subtitle?: string): Opens {
+  return {
+    drill: () =>
+      offersDrill(b.h, title, ids, {
+        ...(subtitle ? { subtitle } : {}),
+        note: OFFERS_NOTE,
+        uses: b.uses(FIGURE.hiringAccepted),
+      }),
+    calc: null,
+  }
 }
 
-/** The accepted starts card: accepted offers, plus moves into the scope that have not started (HN-5). */
-function acceptedCard(b: Built, ids: readonly string[], title: string, metricId: string): CalcSpec {
-  const moves = movesIn(ids)
-  const offerIds = ids.filter((id) => !isMoveIn(id))
-  const offers = offerIds.length
-  const word = (n: number) => (n === 1 ? 'offer' : 'offers')
+/** The Future starts tile's card: the signed offers due by the year end, which it lists (dates only). */
+function futureStartsCard(b: Built, ids: readonly string[], title: string): CalcSpec {
+  const n = ids.length
   return card(b, {
     title,
-    metricId,
-    value: ids.length,
+    metricId: ID.hiringAcceptedStarts,
+    value: n,
     format: 'int',
-    inputs: [
-      calcInput('Accepted offers', offers, 'int', SOURCE.offers),
-      ...(moves
-        ? [
-            calcInput(
-              'Moves in (an internal move into a seat in scope, not started)',
-              moves,
-              'int',
-              SOURCE.seats,
-            ),
-          ]
-        : []),
-    ],
+    inputs: [calcInput('Signed offers, not started', n, 'int', SOURCE.offers)],
     steps: [
       calcStep(
-        moves ? 'Accepted starts = accepted offers + moves in' : 'Accepted starts',
-        moves
-          ? `${plain(offers)} ${word(offers)} + ${plain(moves)} ${moves === 1 ? 'move' : 'moves'}`
-          : `${plain(offers)} ${word(offers)}`,
-        ids.length,
+        'Future starts = signed offers starting by then',
+        `${plain(n)} ${n === 1 ? 'offer' : 'offers'}`,
+        n,
         'int',
       ),
     ],
-    ...(moves ? {} : { rows: offersDrill(b.h, title, offerIds, { uses: b.uses(FIGURE.hiringAccepted) }) }),
-    note: moves
-      ? 'Only the dates show: an offer’s terms come from the recruiting system. A move in holds no req, so the card counts it.'
-      : 'Only the dates show: an offer’s terms come from the recruiting system.',
+    rows: offersDrill(b.h, title, ids, { note: OFFERS_NOTE, uses: b.uses(FIGURE.hiringAccepted) }),
+    note: 'Only signed offers count: never a forecast or modeled start, and never an Open or Planned seat without one. Only the dates show.',
     uses: b.uses(FIGURE.hiringAccepted),
   })
+}
+
+/** Moves in (C37): the seats the people move into, in every mode (a move holds no req). */
+function movesOpens(b: Built, ids: readonly string[], title: string): Opens {
+  const counts = new Map<string, number>()
+  for (const id of ids) {
+    const seat = b.h.moves.get(id)?.positionId
+    if (seat) counts.set(seat, (counts.get(seat) ?? 0) + 1)
+  }
+  const seats = [...counts.keys()].sort()
+  const shared = [...counts.values()].some((n) => n > 1)
+  return {
+    drill: () =>
+      seatsDrill(b.h, title, seats, {
+        note: 'Approved internal moves into the scope that have not started. Each row is the seat the person moves into.',
+        ...(shared ? { weight: (pos: Position) => counts.get(pos.positionId) ?? 0 } : {}),
+        noun: ['seat', 'seats'],
+        uses: b.uses(FIGURE.hiringOpen),
+      }),
+    calc: null,
+  }
 }
 
 /* ───────────── the quarter table ───────────── */
@@ -831,7 +880,9 @@ function cellOf(b: Built, key: HiringRowKey, q: HiringQuarter): Opens {
         uses: b.uses(FIGURE.hiringHeads),
       })
     case 'accepted':
-      return acceptedOpens(b, q.acceptedIds, `Accepted starts by ${quarterEndLabel(q)}`)
+      return futureStartsOpens(b, q.acceptedIds, `Future starts by ${quarterEndLabel(q)}`)
+    case 'moves':
+      return movesOpens(b, q.moveInIds, `Moves in by ${quarterEndLabel(q)}`)
     case 'open':
       return { drill: null, calc: () => openCard(b, q) }
     case 'new':
@@ -855,6 +906,8 @@ function aheadValue(b: Built, key: HiringRowKey, q: HiringQuarter): number | nul
       return b.r.table.heads.total
     case 'accepted':
       return q.accepted
+    case 'moves':
+      return q.movesIn
     case 'open':
       return q.open
     case 'new':
@@ -918,7 +971,7 @@ function historyNote(quarters: readonly HiringQuarter[]): string | null {
 function quarterTable(b: Built): FigureData<HiringQuarterRow> {
   const quarters = b.r.table.quarters
   const qOf = new Map<QuarterKey, HiringQuarter>(quarters.map((q, i) => [QUARTER_KEYS[i], q]))
-  const rows: HiringQuarterRow[] = HIRING_ROWS.map((def) => {
+  const all: HiringQuarterRow[] = HIRING_ROWS.map((def) => {
     const cells: Record<QuarterKey, number | null> = { q1: null, q2: null, q3: null, q4: null }
     const notes: Partial<Record<QuarterKey, string>> = {}
     for (const k of QUARTER_KEYS) {
@@ -949,6 +1002,10 @@ function quarterTable(b: Built): FigureData<HiringQuarterRow> {
       notesText: notesText ? `${notesText}.` : '',
     }
   })
+  // Moves in by quarter end shows only when a quarter ahead holds one (C37).
+  const rows = all.filter(
+    (r) => !ONLY_WHEN_NOT_ZERO.has(r.key) || QUARTER_KEYS.some((k) => r[k] != null && r[k] !== 0),
+  )
   const cellFor = (k: QuarterKey) => (r: HiringQuarterRow) => {
     const q = qOf.get(k)
     if (!q || r[k] == null) return null
@@ -982,7 +1039,7 @@ function quarterTable(b: Built): FigureData<HiringQuarterRow> {
     id: PLAN_FIGURES.hiringQuarters,
     metric: ID.hiringOpenByQuarter,
     title: 'Open to hire by quarter',
-    subtitle: `Approved heads by each quarter end of ${b.r.table.fiscalYear}, less current heads on ${b.asOfLabel} and the accepted starts due by then. Heads only.`,
+    subtitle: `Approved heads by each quarter end of ${b.r.table.fiscalYear}, less current heads on ${b.asOfLabel} and the future starts${b.anyMoves ? ' and moves in' : ''} due by then. Heads only.`,
     rows,
     columns,
     note: historyNote(quarters),
@@ -1038,15 +1095,9 @@ function openByQuarter(b: Built): FigureData<HiringOpenRow> {
 
 /* ───────────── velocity ───────────── */
 
-function forecastStartsDrill(b: Built, m: Month, title: string) {
-  const seats = b.h.flows?.get(m)?.startSeats
-  if (!seats?.size) return null
-  return seatsDrill(b.h, title, [...seats.keys()].sort(), {
-    weight: (pos: Position) => seats.get(pos.positionId) ?? 0,
-    note: 'Each seat counts as its probability to start in the month; an accepted offer counts 1.',
-    noun: ['seat', 'seats'],
-  })
-}
+/** "Actual" for a closed month, "Ahead" for a month ahead (its hires are future starts, C37). */
+export const velocityKindText = (kind: HiringMonth['kind']): string =>
+  kind === 'actual' ? 'Actual' : 'Ahead'
 
 function velocityFigure(b: Built): FigureData<HiringVelocityRow> {
   const months = b.r.velocity.months
@@ -1057,9 +1108,10 @@ function velocityFigure(b: Built): FigureData<HiringVelocityRow> {
     hires: m.hires,
     exits: m.exits,
     net: m.net,
-    kindText: m.kind === 'actual' ? 'Actual' : 'Forecast',
+    kindText: velocityKindText(m.kind),
   }))
   const byMonth = new Map(months.map((m) => [m.month, m]))
+  // Hires are whole people in every month (a month ahead counts signed offers); exits ahead are modeled.
   const fmtOf = (r: HiringVelocityRow): Format => (r.kind === 'actual' ? 'int' : 'num1')
   const sub = (r: HiringVelocityRow) => subtitleOf(r.label, b.ctx.scopeLabel)
   const actualCount = (r: HiringVelocityRow, which: 'hires' | 'exits'): Opens => {
@@ -1087,123 +1139,339 @@ function velocityFigure(b: Built): FigureData<HiringVelocityRow> {
           uses: b.uses(FIGURE.hiringLeavers),
         })
   }
-  const forecastCard = (r: HiringVelocityRow, which: 'hires' | 'exits' | 'net'): CalcSpec | null => {
+  /** A month ahead's hires: its future starts, the signed offers starting in it (C37). */
+  const startsOpens = (r: HiringVelocityRow): Opens => {
+    const m = byMonth.get(r.month)
+    return m ? futureStartsOpens(b, m.startIds ?? [], `Future starts, ${r.label}`, sub(r)) : NOTHING
+  }
+  const exitsCard = (r: HiringVelocityRow): CalcSpec | null => {
     const m = byMonth.get(r.month)
     if (!m) return null
     const f = b.h.input.forecast.find((x) => x.month === r.month)
-    if (which === 'hires')
-      return card(b, {
-        title: `Expected starts, ${r.label}`,
-        subtitle: sub(r),
-        metricId: ID.hiringHiresByMonth,
-        value: m.hires,
-        format: 'num1',
-        inputs: [
-          calcInput('Expected starts (probability-weighted)', f?.starts ?? null, 'num2', SOURCE.forecast),
-        ],
-        steps: [calcStep('The forecast’s starts in the month', plain(f?.starts, 2), m.hires, 'num1')],
-        rows: forecastStartsDrill(b, r.month, `Expected starts, ${r.label}`),
-        uses: b.uses(FIGURE.hiringVelocity),
-      })
-    if (which === 'exits') {
-      const known = monthRows(b, 'exits', r.month)
-      const noSeat = noSeatNote(known)
-      return card(b, {
-        title: `Expected exits, ${r.label}`,
-        subtitle: sub(r),
-        metricId: ID.hiringExitsByMonth,
-        value: m.exits,
-        format: 'num1',
-        inputs: [
-          calcInput('Known exits', m.exitIds.length, 'int', SOURCE.hris),
-          ...knownInputs(known),
-          calcInput('Modeled exits', f?.modeledExits ?? null, 'num2', SOURCE.forecast),
-        ],
-        steps: [
-          calcStep(
-            'Expected exits = known + modeled',
-            `${plain(m.exitIds.length)} + ${plain(f?.modeledExits, 2)}`,
-            m.exits,
-            'num1',
-          ),
-        ],
-        rows: exitSeatsDrill(b, `Expected exits, ${r.label}`, known, [r.month]),
-        ...(noSeat ? { note: noSeat } : {}),
-        uses: b.uses(FIGURE.hiringVelocity),
-      })
-    }
-    return netCard(b, r, m)
+    const known = monthRows(b, 'exits', r.month)
+    const noSeat = noSeatNote(known)
+    return card(b, {
+      title: `Expected exits, ${r.label}`,
+      subtitle: sub(r),
+      metricId: ID.hiringExitsByMonth,
+      value: m.exits,
+      format: 'num1',
+      inputs: [
+        calcInput('Known exits', m.exitIds.length, 'int', SOURCE.hris),
+        ...knownInputs(known),
+        calcInput('Modeled exits', f?.modeledExits ?? null, 'num2', SOURCE.forecast),
+      ],
+      steps: [
+        calcStep(
+          'Expected exits = known + modeled',
+          `${plain(m.exitIds.length)} + ${plain(f?.modeledExits, 2)}`,
+          m.exits,
+          'num1',
+        ),
+      ],
+      rows: exitSeatsDrill(b, `Expected exits, ${r.label}`, known, [r.month]),
+      ...(noSeat ? { note: noSeat } : {}),
+      uses: b.uses(FIGURE.hiringVelocity),
+    })
   }
-  const netCard = (b2: Built, r: HiringVelocityRow, m: HiringMonth): CalcSpec =>
-    card(b2, {
+  const netCard = (r: HiringVelocityRow, m: HiringMonth): CalcSpec => {
+    const actual = m.kind === 'actual'
+    return card(b, {
       title: `Net hiring, ${r.label}`,
       subtitle: sub(r),
       metricId: ID.hiringNetPace,
       value: m.net,
       format: fmtOf(r),
       inputs: [
+        calcInput(actual ? 'Hires' : 'Future starts', m.hires, 'int', actual ? SOURCE.hris : SOURCE.offers),
         calcInput(
-          m.kind === 'actual' ? 'Hires' : 'Expected starts',
-          m.hires,
-          fmtOf(r),
-          m.kind === 'actual' ? SOURCE.hris : SOURCE.forecast,
-        ),
-        calcInput(
-          m.kind === 'actual' ? 'Exits' : 'Expected exits',
+          actual ? 'Exits' : 'Expected exits',
           m.exits,
           fmtOf(r),
-          m.kind === 'actual' ? SOURCE.hris : SOURCE.forecast,
+          actual ? SOURCE.hris : SOURCE.forecast,
         ),
       ],
       steps: [
         calcStep(
-          'Net = hires − exits',
-          `${plain(m.hires, m.kind === 'actual' ? 0 : 2)} − ${plain(m.exits, m.kind === 'actual' ? 0 : 2)}`,
+          actual ? 'Net = hires − exits' : 'Net = future starts − expected exits',
+          `${plain(m.hires)} − ${plain(m.exits, actual ? 0 : 2)}`,
           m.net,
           fmtOf(r),
         ),
       ],
-      uses: b2.uses(FIGURE.hiringVelocity),
+      uses: b.uses(FIGURE.hiringVelocity),
     })
+  }
   const columns: Column<HiringVelocityRow>[] = [
     { key: 'label', label: 'Month', sortValue: (r) => r.month },
-    { key: 'kindText', label: 'Actual or forecast', format: 'text' },
-    ...(['hires', 'exits'] as const).map(
-      (which): Column<HiringVelocityRow> => ({
-        key: which,
-        label: which === 'hires' ? 'Hires (expected starts ahead)' : 'Exits (expected ahead)',
-        format: fmtOf,
-        drill: (r) => (r.kind === 'actual' ? actualCount(r, which).drill : null),
-        calc: (r) => {
-          if (r.kind !== 'actual') return () => forecastCard(r, which)
-          const c = actualCount(r, which)
-          return c.drill ? null : c.calc
-        },
-      }),
-    ),
+    { key: 'kindText', label: 'Closed or ahead', format: 'text' },
+    {
+      key: 'hires',
+      label: 'Hires (future starts ahead)',
+      format: 'int',
+      drill: (r) => (r.kind === 'actual' ? actualCount(r, 'hires') : startsOpens(r)).drill,
+      calc: (r) => {
+        if (r.kind !== 'actual') return null
+        const c = actualCount(r, 'hires')
+        return c.drill ? null : c.calc
+      },
+    },
+    {
+      key: 'exits',
+      label: 'Exits (expected ahead)',
+      format: fmtOf,
+      drill: (r) => (r.kind === 'actual' ? actualCount(r, 'exits').drill : null),
+      calc: (r) => {
+        if (r.kind !== 'actual') return () => exitsCard(r)
+        const c = actualCount(r, 'exits')
+        return c.drill ? null : c.calc
+      },
+    },
     {
       key: 'net',
       label: 'Net',
       format: fmtOf,
       calc: (r) => {
         const m = byMonth.get(r.month)
-        return m ? () => netCard(b, r, m) : null
+        return m ? () => netCard(r, m) : null
       },
     },
   ]
   const actual = months.filter((m) => m.kind === 'actual')
+  const fy = b.r.table.fiscalYear
   return {
     id: PLAN_FIGURES.hiringVelocity,
     metric: ID.hiringPace,
     title: 'Hiring velocity',
     subtitle: actual.length
-      ? `Hires and exits in each of the last ${TRAILING_MONTHS} closed months, then the forecast’s expected starts and exits to the end of ${b.r.table.fiscalYear}. Heads only.`
-      : `The forecast’s expected starts and exits to the end of ${b.r.table.fiscalYear}, until a month is closed. Heads only.`,
+      ? `Hires and exits in each of the last ${TRAILING_MONTHS} closed months, then the future starts (signed offers, by start month) and the expected exits to the end of ${fy}. Heads only.`
+      : `The future starts (signed offers, by start month) and the expected exits to the end of ${fy}, until a month is closed. Heads only.`,
     rows,
     columns,
     note: actual.length ? null : 'No closed month yet.',
-    empty: months.length ? null : 'No closed or forecast month to show.',
+    empty: months.length ? null : 'No closed month or month ahead to show.',
     uses: b.uses(FIGURE.hiringVelocity),
+  }
+}
+
+/* ───────────── hires in the last 3 months, by location and department (C37) ───────────── */
+
+/** The recent hires table's month columns, oldest first. */
+const RECENT_MONTH_KEYS = ['m1', 'm2', 'm3'] as const
+
+/** The department and location of the seat a hire was hired into: its row on the hire date (else its first row). */
+function hirePlace(b: Built, x: HiringPersonRow): { department: string; location: string } {
+  const rows = (x.positionId ? seatsOf(b.ctx).get(x.positionId)?.rows : null) ?? []
+  let row: PositionRow | null = rows[0] ?? null
+  for (const r of rows) if (r.effectiveDate <= x.row.hireDate) row = r
+  return {
+    department: row?.department || NO_DEPARTMENT,
+    location: row?.location || NO_LOCATION,
+  }
+}
+
+/** One group of the table while it is built: its row's words and the hires of each month. */
+interface RecentGroup {
+  key: string
+  kind: HiringRecentKind
+  department: string
+  location: string
+  people: HiringPersonRow[][]
+}
+
+const byText = (a: string, b2: string): number => (a < b2 ? -1 : a > b2 ? 1 : 0)
+/** "No department" and "No location" sort after the named ones. */
+const placeOrder = (a: string, b2: string): number => {
+  const none = (v: string) => v === NO_DEPARTMENT || v === NO_LOCATION
+  return none(a) === none(b2) ? byText(a, b2) : none(a) ? 1 : -1
+}
+
+/**
+ * Hires in the last 3 months, by location and department (`plan-hiring-recent`, C37): the hires of
+ * the last 3 closed months as the velocity figure counts them (`plan.hires.ytd`'s hire), a row per
+ * department and location with a hire, each department's sub-total after its rows, then the
+ * locations' sub-totals and the total, which is the velocity figure's hires in those months. Each
+ * count opens the hires it counts; hires per month opens its card.
+ */
+function recentFigure(b: Built): FigureData<HiringRecentRow> {
+  const months = b.pace.months.map((m) => m.month)
+  const span = months.length ? `${monthLabel(months[0])} to ${monthLabel(months[months.length - 1])}` : ''
+  const groups = new Map<string, RecentGroup>()
+  const groupOf = (key: string, kind: HiringRecentKind, department: string, location: string) => {
+    let g = groups.get(key)
+    if (!g) {
+      g = { key, kind, department, location, people: months.map(() => []) }
+      groups.set(key, g)
+    }
+    return g
+  }
+  const total = groupOf('total', 'total', ALL_DEPARTMENTS, ALL_LOCATIONS)
+  months.forEach((month, i) => {
+    for (const x of monthRows(b, 'hires', month)) {
+      const { department, location } = hirePlace(b, x)
+      for (const g of [
+        groupOf(`pair:${department}|${location}`, 'pair', department, location),
+        groupOf(`department:${department}`, 'department', department, ALL_LOCATIONS),
+        groupOf(`location:${location}`, 'location', ALL_DEPARTMENTS, location),
+        total,
+      ])
+        g.people[i].push(x)
+    }
+  })
+  const list = [...groups.values()]
+  const of = (kind: HiringRecentKind) => list.filter((g) => g.kind === kind)
+  const ordered: RecentGroup[] = []
+  for (const d of of('department').sort((x, y) => placeOrder(x.department, y.department))) {
+    ordered.push(
+      ...of('pair')
+        .filter((g) => g.department === d.department)
+        .sort((x, y) => placeOrder(x.location, y.location)),
+      d,
+    )
+  }
+  ordered.push(...of('location').sort((x, y) => placeOrder(x.location, y.location)), total)
+  const byKey = new Map(ordered.map((g) => [g.key, g]))
+  const full = months.length === PACE_MONTHS[0]
+  const rows: HiringRecentRow[] = ordered.map((g) => {
+    const counts = RECENT_MONTH_KEYS.map((_, i) => g.people[i]?.length ?? 0)
+    const sum = counts.reduce((a, n) => a + n, 0)
+    return {
+      key: g.key,
+      kind: g.kind,
+      department: g.department,
+      location: g.location,
+      m1: counts[0],
+      m2: counts[1],
+      m3: counts[2],
+      total: sum,
+      perMonth: full ? sum / PACE_MONTHS[0] : null,
+    }
+  })
+  /** Where a row's hires went, in words: "Design in Austin", "Design, all locations", "Austin, all departments". */
+  const where = (g: RecentGroup): string =>
+    g.kind === 'pair'
+      ? `${g.department} in ${g.location}`
+      : g.kind === 'department'
+        ? `${g.department}, all locations`
+        : g.kind === 'location'
+          ? `${g.location}, all departments`
+          : 'all departments and locations'
+  const note =
+    'Employees hired into a seat in scope, under the department and location of the seat on the hire date; internal moves and transfers are not hires.'
+  const hiresOpens = (g: RecentGroup, people: readonly HiringPersonRow[], when: string): Opens =>
+    peopleCount(b, {
+      title: `Hires, ${where(g)}, ${when}`,
+      seatTitle: `Seats filled by hires, ${where(g)}, ${when}`,
+      people,
+      value: people.length,
+      metricId: ID.hiringRecentHires,
+      subtitle: subtitleOf(when, b.ctx.scopeLabel),
+      note,
+      uses: b.uses(FIGURE.hiringRecent),
+    })
+  const perMonthCard = (g: RecentGroup): CalcSpec => {
+    const counts = g.people.map((p) => p.length)
+    const people = g.people.flat()
+    const sum = people.length
+    const value = full ? sum / PACE_MONTHS[0] : null
+    const records =
+      value != null && people.length
+        ? peopleDrill(b.h, `Hires, ${where(g)}, ${span}`, people, {
+            seatTitle: `Seats filled by hires, ${where(g)}, ${span}`,
+            subtitle: subtitleOf(span, b.ctx.scopeLabel),
+            note: PACE_RECORDS_NOTE,
+            each: 1 / PACE_MONTHS[0],
+            uses: b.uses(FIGURE.hiringRecent),
+          })
+        : null
+    return card(b, {
+      title: `Hires per month, ${where(g)}`,
+      subtitle: subtitleOf(span, b.ctx.scopeLabel),
+      metricId: ID.hiringPace,
+      value,
+      format: 'num1',
+      inputs: months.map((m, i) => calcInput(`Hires in ${monthLabel(m)}`, counts[i], 'int', SOURCE.hris)),
+      steps:
+        value == null
+          ? [calcStep(PACE_NEEDS_TEXT, 'Not enough closed months', null, 'num1')]
+          : [
+              calcStep(
+                `Hires per month = their sum ÷ ${PACE_MONTHS[0]}`,
+                `(${counts.join(' + ')}) ÷ ${PACE_MONTHS[0]}`,
+                value,
+                'num1',
+              ),
+            ],
+      ...(records ? { rows: records } : {}),
+      uses: b.uses(FIGURE.hiringRecent),
+    })
+  }
+  const groupFor = (r: HiringRecentRow) => byKey.get(r.key) ?? null
+  const columns: Column<HiringRecentRow>[] = [
+    { key: 'department', label: 'Department' },
+    { key: 'location', label: 'Location' },
+    ...RECENT_MONTH_KEYS.slice(0, months.length).map(
+      (k, i): Column<HiringRecentRow> => ({
+        key: k,
+        label: monthLabel(months[i]),
+        format: 'int',
+        align: 'right',
+        drill: (r) => {
+          const g = groupFor(r)
+          return g ? hiresOpens(g, g.people[i] ?? [], monthLabel(months[i])).drill : null
+        },
+        calc: (r) => {
+          const g = groupFor(r)
+          if (!g) return null
+          const c = hiresOpens(g, g.people[i] ?? [], monthLabel(months[i]))
+          return c.drill ? null : c.calc
+        },
+      }),
+    ),
+    {
+      key: 'total',
+      label: 'Total',
+      format: 'int',
+      align: 'right',
+      drill: (r) => {
+        const g = groupFor(r)
+        return g ? hiresOpens(g, g.people.flat(), span).drill : null
+      },
+      calc: (r) => {
+        const g = groupFor(r)
+        if (!g) return null
+        const c = hiresOpens(g, g.people.flat(), span)
+        return c.drill ? null : c.calc
+      },
+    },
+    {
+      key: 'perMonth',
+      label: 'Hires per month',
+      format: 'num1',
+      align: 'right',
+      calc: (r) => {
+        const g = groupFor(r)
+        return g ? () => perMonthCard(g) : null
+      },
+    },
+  ]
+  const hired = total.people.some((p) => p.length > 0)
+  return {
+    id: PLAN_FIGURES.hiringRecent,
+    metric: ID.hiringRecentHires,
+    title: 'Hires in the last 3 months, by location and department',
+    subtitle: months.length
+      ? `Hires in ${span} into seats in scope, by the department and location of the seat, with sub-totals by department and by location. The total is the hiring velocity’s hires in those months. Heads only.`
+      : 'Hires in the last 3 closed months, by the department and location of the seat. Heads only.',
+    rows: months.length ? rows : [],
+    columns,
+    note: null,
+    empty: !months.length
+      ? 'The last 3 months show once 3 months are closed.'
+      : hired
+        ? null
+        : `No hire in ${span}.`,
+    uses: b.uses(FIGURE.hiringRecent),
   }
 }
 
@@ -1405,11 +1673,11 @@ function kpisOf(b: Built): Kpi[] {
   const fyEndLabel = formatDate(b.h.fyEnd)
   const fy = t.fiscalYear
   const over = yearOverText(fy)
-  const moves = movesIn(end.acceptedIds)
-  const offers = end.acceptedIds.length - moves
+  // The moves' term shows only when there are moves in (C37).
+  const moves = t.movesToCome
   const startsText = moves
-    ? `${plural(offers, 'offer')} accepted and ${plural(moves, 'move')} in to start by then`
-    : `${plural(t.acceptedToCome, 'offer')} accepted to start by then`
+    ? `${plural(t.acceptedToCome, 'future start')} − ${plural(moves, 'move in', 'moves in')} by then`
+    : `${plural(t.acceptedToCome, 'future start')} by then`
   // A tile whose value is "—" still opens its card, which says why (review HU-8).
   const emptyCard = { calcWhenEmpty: true } as const
   const tiles: Kpi[] = [
@@ -1430,16 +1698,14 @@ function kpisOf(b: Built): Kpi[] {
     tile('hiring-accepted', {
       value: t.acceptedToCome,
       format: 'int',
-      note: b.over ? over : 'Dates only: terms come from the recruiting system',
+      note: b.over ? over : 'Signed offers, by start date: dates only',
       formula: b.over
         ? `${over}: no start is left to come in it.`
-        : moves
-          ? `Accepted offers on approved seats, and moves into the scope, starting after ${b.asOfLabel} and by ${fyEndLabel}.`
-          : `Accepted offers on approved seats starting after ${b.asOfLabel} and by ${fyEndLabel}.`,
+        : `Signed offers on approved seats starting after ${b.asOfLabel} and by ${fyEndLabel}.`,
       calc: () =>
         b.over
-          ? yearOverCard(b, ID.hiringAcceptedStarts, 'Accepted starts to come')
-          : acceptedCard(b, end.acceptedIds, 'Accepted starts to come', ID.hiringAcceptedStarts),
+          ? yearOverCard(b, ID.hiringAcceptedStarts, 'Future starts')
+          : futureStartsCard(b, end.acceptedIds, 'Future starts'),
       uses: b.uses(FIGURE.hiringAccepted),
     }),
     tile('hiring-pace', {
@@ -1619,9 +1885,8 @@ function findingsOf(b: Built): Finding[] {
       id: 'hiring-over',
       metricId: ID.hiringOpen,
       severity: 'info',
-      title: `${overByText(open)} at ${t.fiscalYear} end: current heads and accepted starts are above approved heads.`,
-      detail:
-        'It is not a hiring target. People not in plan and accepted starts count against approved heads.',
+      title: `${overByText(open)} at ${t.fiscalYear} end: ${aboveWords(t.movesToCome)} are above approved heads.`,
+      detail: `It is not a hiring target. People not in plan${t.movesToCome ? ', future starts and moves in' : ' and future starts'} count against approved heads.`,
       calc: () => openCard(b, b.end, `Open to hire, ${t.fiscalYear}`),
       tab: 'hiring',
       uses: b.uses(FIGURE.hiringOpen),
@@ -1657,6 +1922,7 @@ export function computeHiring(ctx: AnalyticsContext): PlanHiring {
     end,
     over: end.kind === 'history',
     otherYear: fiscalYearOf(ctx.asOf) !== r.table.fiscalYear,
+    anyMoves: r.table.quarters.some((q) => (q.movesIn ?? 0) > 0),
     uses: h.p.uses,
   }
   return {
@@ -1667,5 +1933,7 @@ export function computeHiring(ctx: AnalyticsContext): PlanHiring {
     openByQuarter: openByQuarter(b),
     velocity: velocityFigure(b),
     paceNote: paceNoteOf(b),
+    recent: recentFigure(b),
+    recentMonths: b.pace.months.map((m) => m.month),
   }
 }

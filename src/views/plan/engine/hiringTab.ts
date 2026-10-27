@@ -1,6 +1,6 @@
 /**
- * Plan > Hiring's model (docs/PLAN.md 9.7, change C36): open to hire by quarter and hiring velocity
- * for the mode's own scope (Manager: the tree strictly below the manager's seat, R23; HRBP: the unit;
+ * Plan > Hiring's model (docs/PLAN.md 9.7, changes C36 and C37): open to hire by quarter, hiring
+ * velocity and the hires of the last 3 closed months by department and location, for the mode's own scope (Manager: the tree strictly below the manager's seat, R23; HRBP: the unit;
  * Leader: the org; Finance: the company under its filters; HR admin), in heads only.
  *
  * It is its own model, not a `PlanModel` field: it reads the forecast's exits, and the plan model's
@@ -20,7 +20,8 @@
  *  - Exits are last days in the HRIS, never leave; people on leave stay in current heads and are
  *    never split out.
  *  - Counted numbers drill to exactly their rows (seats as positions, people as workers where the
- *    mode lists them and else the seats they hold, accepted offers as reqs with dates only); modeled
+ *    mode lists them and else the seats they hold, future starts as reqs with dates only, moves in
+ *    as the seats they move into); modeled
  *    ones (expected exits, to reach plan, the paces, attrition, months to close) open a calculation
  *    card whose last step is the value.
  *
@@ -47,7 +48,7 @@ import { computeHiring } from './hiringModel'
  */
 export const HIRING_KPIS = [
   { id: 'hiring-open', metricId: ID.hiringOpen, label: 'Open to hire' },
-  { id: 'hiring-accepted', metricId: ID.hiringAcceptedStarts, label: 'Accepted starts to come' },
+  { id: 'hiring-accepted', metricId: ID.hiringAcceptedStarts, label: 'Future starts' },
   { id: 'hiring-pace', metricId: ID.hiringPace, label: 'Hires per month, 3-month pace' },
   { id: 'hiring-exit-pace', metricId: ID.hiringExitPace, label: 'Exits per month, 3-month pace' },
   { id: 'hiring-net-pace', metricId: ID.hiringNetPace, label: 'Net hiring pace' },
@@ -66,6 +67,7 @@ export type HiringRowKey =
   | 'approved'
   | 'current'
   | 'accepted'
+  | 'moves'
   | 'open'
   | 'new'
   | 'exits'
@@ -75,9 +77,10 @@ export type HiringRowKey =
   | 'exitsActual'
 
 /**
- * The quarter table's rows in order (9.7 screen 2): the eight rows for the quarters ahead, then the
- * closed quarters' hires and exits. `ahead` rows fill the quarters ahead; `history` rows fill the
- * closed quarters (greyed), whose Current heads cell is the actual heads at the quarter end.
+ * The quarter table's rows in order (9.7 screen 2): the rows for the quarters ahead, then the closed
+ * quarters' hires and exits. `ahead` rows fill the quarters ahead; `history` rows fill the closed
+ * quarters (greyed), whose Current heads cell is the actual heads at the quarter end. Moves in by
+ * quarter end (C37) shows only when a quarter ahead holds one (`ONLY_WHEN_NOT_ZERO`).
  */
 export const HIRING_ROWS: readonly {
   key: HiringRowKey
@@ -105,8 +108,16 @@ export const HIRING_ROWS: readonly {
   },
   {
     key: 'accepted',
-    label: 'Accepted starts by quarter end',
+    label: 'Future starts by quarter end',
     metric: ID.hiringAcceptedStarts,
+    format: 'int',
+    ahead: true,
+    history: false,
+  },
+  {
+    key: 'moves',
+    label: 'Moves in by quarter end',
+    metric: ID.hiringMovesIn,
     format: 'int',
     ahead: true,
     history: false,
@@ -169,6 +180,9 @@ export const HIRING_ROWS: readonly {
   },
 ]
 
+/** Rows the quarter table shows only when one of their cells is not 0 (C37: Moves in by quarter end). */
+export const ONLY_WHEN_NOT_ZERO: ReadonlySet<HiringRowKey> = new Set<HiringRowKey>(['moves'])
+
 /** The table's note on its closed quarters. */
 export const HISTORY_NOTE =
   'Closed quarters show actual heads at the quarter end, and the quarter’s hires and exits.'
@@ -194,7 +208,7 @@ export function behindByGap(gap: number): string {
 export const NOT_CLOSING_TEXT = 'Not closing at this pace: exits match or outrun hires.'
 /** My team's and the homes' note on the two counts (9.7 Homes). */
 export const OPEN_TO_HIRE_NOTE =
-  'Left to fill counts Open and Planned seats. Open to hire is approved heads less current heads and the accepted starts to come.'
+  'Left to fill counts Open and Planned seats. Open to hire is approved heads less current heads and the future starts to come.'
 
 /**
  * One row of the quarter table: a measure across the fiscal year's quarters. A cell is null where
@@ -226,7 +240,10 @@ export interface HiringOpenRow {
   note: string | null
 }
 
-/** One month of hiring velocity (`plan-hiring-velocity`): actual hires and exits, or the forecast's starts and exits. */
+/**
+ * One month of hiring velocity (`plan-hiring-velocity`): actual hires and exits, or a month ahead's
+ * future starts (signed offers by start month, whole people, C37) and expected exits.
+ */
 export interface HiringVelocityRow {
   [key: string]: unknown
   month: Month
@@ -236,6 +253,34 @@ export interface HiringVelocityRow {
   hires: number
   exits: number
   net: number
+}
+
+/** What a row of the recent hires table is: a department and location, a sub-total or the total. */
+export type HiringRecentKind = 'pair' | 'department' | 'location' | 'total'
+
+/** The words a sub-total or total row puts in the column it sums over. */
+export const ALL_DEPARTMENTS = 'All departments'
+export const ALL_LOCATIONS = 'All locations'
+/** A seat with no department (the department column's words for it). */
+export const NO_DEPARTMENT = 'No department'
+
+/**
+ * One row of Hires in the last 3 months, by location and department (`plan-hiring-recent`, C37): a
+ * department and location that had a hire, a department's or a location's sub-total, or the total.
+ * `m1` to `m3` are the last 3 closed months, oldest first (`months` on the figure's model).
+ */
+export interface HiringRecentRow {
+  [key: string]: unknown
+  key: string
+  kind: HiringRecentKind
+  department: string
+  location: string
+  m1: number
+  m2: number
+  m3: number
+  total: number
+  /** total ÷ 3; null without 3 closed months. */
+  perMonth: number | null
 }
 
 /* ───────────── the tab ───────────── */
@@ -252,6 +297,10 @@ export interface PlanHiring extends TabModel {
   velocity: FigureData<HiringVelocityRow>
   /** The pace note under the velocity chart (3- and 6-month paces, attrition in heads), or null. */
   paceNote: string | null
+  /** Hires in the last 3 months, by location and department (C37). */
+  recent: FigureData<HiringRecentRow>
+  /** The months of `recent`'s `m1` to `m3` columns, oldest first (empty with no closed month). */
+  recentMonths: readonly Month[]
 }
 
 /** The engine's input for a context: heads, dates and IDs only, over the mode's scope (./hiringData.ts). */

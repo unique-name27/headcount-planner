@@ -32,7 +32,8 @@ function readHiring(s: Sample): Probed[] {
   for (const mode of MODES) {
     const m = planHiringModel(sampleCtx(mode, { sample: s }))
     for (const k of m.kpis) out.push(kpiProbe(k, mode))
-    for (const f of [m.quarters, m.openByQuarter, m.velocity]) out.push(figureProbe(f as never, mode))
+    for (const f of [m.quarters, m.openByQuarter, m.velocity, m.recent])
+      out.push(figureProbe(f as never, mode))
   }
   return out
 }

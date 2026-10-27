@@ -4,7 +4,8 @@
  * (src/testkit/crawl.ts `TAB_MODELS`, reading H10), so every crawl the other leak tests run (Manager
  * A, B and C, the amount, leave and request perturbations) covers it; this file holds the tab itself
  * to what 9.7 promises, through `hiringCrawl` (the tab's six tiles, the quarter table, the open to
- * hire bars, the velocity chart, the readout, every records list and calculation card behind them,
+ * hire bars, the velocity chart, the hires of the last 3 months by location and department (C37),
+ * the readout, every records list and calculation card behind them,
  * each figure's CSV and clipboard text and the tab's workbook as written, plus the Open to hire tile
  * the HRBP and Leader homes and My team re-link):
  *
@@ -107,8 +108,13 @@ const READERS = [
 
 const isManager = (key: string) => key.startsWith('manager-')
 
-/** The three charts and tables of the tab (its tiles and readout are the strip and findings ids). */
-const TAB_FIGURES = ['plan-hiring-quarters', 'plan-hiring-open', 'plan-hiring-velocity'] as const
+/** The charts and tables of the tab (its tiles and readout are the strip and findings ids); C37 added the last. */
+const TAB_FIGURES = [
+  'plan-hiring-quarters',
+  'plan-hiring-open',
+  'plan-hiring-velocity',
+  'plan-hiring-recent',
+] as const
 
 /** The values a crawl read under a path. */
 const under = (c: Crawl, prefix: string) => c.seen.filter((x) => x.where.startsWith(prefix))
@@ -143,7 +149,7 @@ describe('Plan > Hiring in every mode (9.7)', () => {
           c.seen.some((x) => x.where === `${HIRING_TAB}.kpis/tile ${id}.value`),
           `${key} ${id}`,
         ).toBe(true)
-      // The quarter table, the bars and the velocity chart, each a figure the mode shows.
+      // The quarter table, the bars, the velocity chart and the recent hires, each a figure the mode shows.
       for (const id of TAB_FIGURES) {
         expect((HIRING_FIGURE_IDS as readonly string[]).includes(id), id).toBe(true)
         expect(c.figures.has(id), `${key} ${id}`).toBe(true)
@@ -151,6 +157,31 @@ describe('Plan > Hiring in every mode (9.7)', () => {
       expect(c.figures.get('plan-hiring-quarters')?.rows.length, key).toBe(10)
       expect(c.figures.get('plan-hiring-open')?.rows.length, key).toBe(4)
       expect(c.figures.get('plan-hiring-velocity')?.rows.length, key).toBeGreaterThanOrEqual(12)
+      // C37: Managers A, B and C hired nobody from July to September, so their table holds its total
+      // row alone; every other reader's holds a row per department and location, the sub-totals and
+      // the total, and each count's records are read.
+      const recent = c.figures.get('plan-hiring-recent')
+      expect(
+        recent?.columns.map((col) => col.label),
+        key,
+      ).toEqual(['Department', 'Location', 'Jul 2026', 'Aug 2026', 'Sep 2026', 'Total', 'Hires per month'])
+      if (isManager(key)) expect(recent?.rows.length, key).toBe(1)
+      else {
+        expect(recent?.rows.length, key).toBeGreaterThan(3)
+        const recentRecords = c.seen.filter(
+          (x) => x.where.includes('/figure plan-hiring-recent/') && /\/records [a-z]+\./i.test(x.where),
+        )
+        expect(recentRecords.length, key).toBeGreaterThan(0)
+        expect(
+          recentRecords.every((x) => /\/records workers\./.test(x.where)),
+          key,
+        ).toBe(true)
+      }
+      for (const ext of ['csv', 'tsv'])
+        expect(
+          c.seen.some((x) => x.where.endsWith(`/figure plan-hiring-recent.${ext}`)),
+          `${key} recent ${ext}`,
+        ).toBe(true)
       // Records behind the counts: seats everywhere; people as workers outside Manager mode only
       // (reading H12: there a count of people opens the seats they hold); calculation cards.
       const kinds = kindsRead(c)

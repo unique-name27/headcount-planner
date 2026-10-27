@@ -1,7 +1,8 @@
 /**
- * Plan > Hiring (docs/PLAN.md 9.7, change C36): the key figures, then the readout (span 4) beside open
- * to hire by quarter (the table, span 8), the small bar chart of open to hire at each quarter end
- * beside hiring velocity with its pace note. Renders `usePlanHiring()` (./model.ts); computes
+ * Plan > Hiring (docs/PLAN.md 9.7, changes C36 and C37): the key figures, then the readout (span 4)
+ * beside open to hire by quarter (the table, span 8), the small bar chart of open to hire at each
+ * quarter end beside hiring velocity with its pace note, and the hires of the last 3 months by
+ * location and department (a table, full width). Renders `usePlanHiring()` (./model.ts); computes
  * nothing. Heads only in every mode. Every figure names its metric, its lineage and its dictionary
  * definitions, and exports through the figure's own menu (the rows and columns the model hands over).
  */
@@ -22,6 +23,7 @@ export function Hiring() {
   const q = m.quarters
   const open = m.openByQuarter
   const v = m.velocity
+  const recent = m.recent
   const kinds = Object.fromEntries(QUARTER_KEYS.map((k, i) => [k, open.rows[i]?.kind ?? 'ahead'])) as Record<
     QuarterKey,
     'history' | 'ahead'
@@ -52,6 +54,7 @@ export function Hiring() {
             ID.hiringApprovedByQuarter,
             ID.hiringCurrentHeads,
             ID.hiringAcceptedStarts,
+            ID.hiringMovesIn,
             ID.hiringOpenByQuarter,
             ID.hiringNewByQuarter,
             ID.hiringExpectedExits,
@@ -121,6 +124,23 @@ export function Hiring() {
       >
         <HiringVelocityChart rows={v.rows} columns={v.columns} />
       </Figure>
+      <Figure
+        id="plan-hiring-recent"
+        metric={recent.metric}
+        uses={recent.uses}
+        title={recent.title}
+        subtitle={recent.subtitle}
+        data={recent.rows}
+        columns={recent.columns}
+        definitions={definitionsOf(ctx.metrics, ID.hiringRecentHires, ID.hiringPace)}
+        note={recent.note ?? undefined}
+        empty={recent.empty}
+        tableOnly
+        tableToggle={false}
+        image={false}
+        table={{ maxRows: 30 }}
+        className="max-md:order-5"
+      />
     </Grid>
   )
 }
