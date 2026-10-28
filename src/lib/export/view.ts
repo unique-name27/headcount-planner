@@ -29,7 +29,7 @@
 import type { Workbook } from 'exceljs'
 import type PptxGenJS from 'pptxgenjs'
 import { APP_NAME } from '@/app/brand'
-import type { Column, ExportMeta, ExportSection, RegisteredFigure } from '@/charts/types'
+import type { Column, DeckNumber, ExportMeta, ExportSection, RegisteredFigure } from '@/charts/types'
 import type { GuardMode } from '@/cost/guard'
 import { type DataStandard, STANDARD_LABEL, TIER_LABEL } from '@/data/quality/tier'
 import { fmt } from '@/lib/format'
@@ -145,6 +145,31 @@ export function isFigureGroups(figures: ViewFigures): figures is readonly Figure
 export function viewEntries(figures: ViewFigures): ViewEntry[] {
   if (!isFigureGroups(figures)) return figures.map((figure) => ({ figure, group: null }))
   return figures.flatMap((group) => group.figures.map((figure) => ({ figure, group })))
+}
+
+/**
+ * A figure's id as its tab registered it: a whole-view export prefixes every id with its tab's key
+ * ("recruiting:plan-recruiting-kpis", src/app/wholeViewModel.ts `tabFigureId`), a tab's own export
+ * does not.
+ */
+function tabOwnId(group: FigureGroup | null, id: string): string {
+  const prefix = group ? `${group.key}:` : ''
+  return prefix && id.startsWith(prefix) ? id.slice(prefix.length) : id
+}
+
+/**
+ * The entries a deck writes a slide for: every entry but those a summary figure of the same tab
+ * stands in for (`RegisteredFigure.deckSummary.replaces`, docs/PLAN.md 9.8), by the ids the tab
+ * registered (with or without the whole-view export's tab prefix). A figure of another tab is never
+ * dropped, nor the summary figure itself. Workbooks keep them all.
+ */
+export function deckEntries(entries: readonly ViewEntry[]): ViewEntry[] {
+  const replaced = new Set<string>()
+  const keyOf = (e: ViewEntry, id: string) => `${e.group?.key ?? ''}|${tabOwnId(e.group, id)}`
+  for (const e of entries)
+    for (const id of e.figure.deckSummary?.replaces ?? [])
+      if (keyOf(e, id) !== keyOf(e, e.figure.id)) replaced.add(keyOf(e, id))
+  return entries.filter((e) => e.figure.deckSummary || !replaced.has(keyOf(e, e.figure.id)))
 }
 
 /**
@@ -801,6 +826,56 @@ function aboutNumbersSlide(pptx: PptxGenJS, about: AboutSlide, right: string) {
   footer(s, pptx, '', right)
 }
 
+/**
+ * The numbers row of a summary slide, from `top`: one box per number, its value large, its label
+ * and its note under it (seven fit across the slide); returns where the chart goes.
+ */
+function summaryNumbers(slide: Slide, numbers: readonly DeckNumber[], top: number): number {
+  if (!numbers.length) return top
+  const gap = 0.12
+  const w = (W - 2 * M - gap * (numbers.length - 1)) / numbers.length
+  const h = 1.35
+  numbers.forEach((n, i) => {
+    slide.addText(
+      [
+        { text: n.value, options: { fontSize: 24, bold: true, color: C.ink, breakLine: true } },
+        { text: n.label, options: { fontSize: 10, bold: true, color: C.ink2, breakLine: !!n.note } },
+        ...(n.note ? [{ text: n.note, options: { fontSize: 8, color: C.muted } }] : []),
+      ],
+      {
+        x: M + i * (w + gap),
+        y: top,
+        w,
+        h,
+        fontFace: FONT,
+        margin: 0.08,
+        valign: 'top',
+        fill: { color: C.sheet2 },
+        fit: 'shrink',
+      },
+    )
+  })
+  return top + h + 0.2
+}
+
+/** The chart's own title over its picture on a summary slide titled otherwise; returns where the chart goes. */
+function summaryCaption(slide: Slide, title: string, top: number): number {
+  slide.addText(title, {
+    x: M,
+    y: top,
+    w: W - 2 * M,
+    h: 0.3,
+    fontFace: FONT,
+    fontSize: 12,
+    bold: true,
+    color: C.ink2,
+    margin: 0,
+    valign: 'top',
+    fit: 'shrink',
+  })
+  return top + 0.35
+}
+
 function figureHeader(slide: Slide, f: RegisteredFigure): number {
   slide.addText(f.title, {
     x: M,
@@ -856,6 +931,8 @@ export function slideTable(
   f: { columns: readonly Column[]; rows: readonly Record<string, unknown>[]; suppressedWhy?: string },
   money: MoneyShown,
   meta?: Pick<ExportMeta, 'mode' | 'modeLine'>,
+  /** The body rows that fit the slide's box (`fitRows`); `TABLE_ROWS` on a plain slide. */
+  maxRows: number = TABLE_ROWS,
 ): SlideTable {
   const t = writtenTable(
     { columns: f.columns, rows: f.rows, ...(f.suppressedWhy ? { suppressedWhy: f.suppressedWhy } : {}) },
@@ -866,7 +943,7 @@ export function slideTable(
   const firsts = cols.map((c) => sampleRow(t.rows, c.key))
   const formats = cols.map((c, i) => columnFormat(c, samples[i], firsts[i]))
   const aligns = cols.map((c, i) => columnAlign(c, samples[i], firsts[i]))
-  const shown = t.rows.slice(0, TABLE_ROWS)
+  const shown = t.rows.slice(0, maxRows)
   const blankWhenEmpty = (c: Column, row: Record<string, unknown>) =>
     c.key === SUPPRESSED_KEY || c.key === SUPPRESSED_WHY_KEY || !!c.why || isAmountCell(c, row)
   const text = shown.map((row) =>
@@ -886,12 +963,21 @@ const RULE_UNDER = (color: string, pt: number): PptxGenJS.TableCellProps['border
   { type: 'none' },
 ]
 
+/**
+ * The body rows of a slide table that fit a box `boxH` inches tall at 0.3in a row, with the header
+ * row and room for the "And n more rows" line under them (review RU-16: a summary slide's numbers
+ * push its body 1.9in lower, so its fallback table holds 8 rows, not 14). At most `TABLE_ROWS`.
+ */
+export const fitRows = (boxH: number): number =>
+  Math.max(1, Math.min(TABLE_ROWS, Math.floor((boxH - 0.35) / 0.3) - 1))
+
 function tableRows(
   f: RegisteredFigure,
   money: MoneyShown,
   meta?: Pick<ExportMeta, 'mode' | 'modeLine'>,
+  maxRows: number = TABLE_ROWS,
 ): { rows: PptxGenJS.TableRow[]; widths: number[]; more: number } {
-  const table = slideTable(f, money, meta)
+  const table = slideTable(f, money, meta, maxRows)
   const cols = table.columns
   const head: PptxGenJS.TableRow = cols.map((c, i) => ({
     text: c.label,
@@ -998,13 +1084,27 @@ export async function exportViewDeck(
     opts,
   )
   if (about) aboutNumbersSlide(pptx, about, right(meta, ++slideNo))
-  for (const [i, e] of entries.entries()) {
+  const slides = deckEntries(entries)
+  for (const [i, e] of slides.entries()) {
     const f = e.figure
     const m = entryMeta(meta, e)
-    if (e.group && e.group !== entries[i - 1]?.group) dividerSlide(pptx, meta, e.group, right(m, ++slideNo))
+    if (dividerBefore(slides, i)) dividerSlide(pptx, meta, e.group as FigureGroup, right(m, ++slideNo))
     const s = pptx.addSlide()
     s.background = { color: 'FFFFFF' }
-    const top = figureHeader(s, f)
+    // A summary slide: the summary's title and its numbers, then the figure's chart under its own
+    // title (9.8).
+    const sum = f.deckSummary
+    const top = sum
+      ? summaryCaption(
+          s,
+          f.title,
+          summaryNumbers(
+            s,
+            sum.numbers,
+            figureHeader(s, { ...f, title: sum.title, subtitle: sum.subtitle ?? f.subtitle }),
+          ),
+        )
+      : figureHeader(s, f)
     const boxW = W - 2 * M
     const boxH = H - 0.85 - top
     const img = f.withheld ? undefined : images.get(f.id)
@@ -1015,7 +1115,7 @@ export async function exportViewDeck(
       const k = Math.min(boxW / inW, boxH / inH, 2)
       s.addImage({ data: await pngDataUrl(img), x: M, y: top, w: inW * k, h: inH * k, altText: f.title })
     } else if (f.rows.length) {
-      const { rows, widths, more } = tableRows(f, moneyShown(opts), m)
+      const { rows, widths, more } = tableRows(f, moneyShown(opts), m, fitRows(boxH))
       s.addTable(rows, {
         x: M,
         y: top,
@@ -1060,6 +1160,17 @@ export async function exportViewDeck(
 }
 
 /**
+ * Whether a tab's divider opens before slide entry `i`: at the first entry of each tab, unless the
+ * tab's only slide is a summary titled as the tab (two slides in a row with one title, review RU-17).
+ */
+function dividerBefore(slides: readonly ViewEntry[], i: number): boolean {
+  const e = slides[i]
+  if (!e?.group || e.group === slides[i - 1]?.group) return false
+  const own = slides.filter((x) => x.group === e.group)
+  return !(own.length === 1 && e.figure.deckSummary?.title === e.group.label)
+}
+
+/**
  * The deck's slides in order, by title (docs/PLAN.md 14.1 item 1): the title slide (the view's
  * label), "About these numbers" (`ABOUT_SLIDE_TITLE`, the facts of `headerFacts(meta)`; left out for
  * a meta with no plan facts and no mode lines), then each tab's divider and its figures.
@@ -1070,9 +1181,10 @@ export function deckOutline(figures: ViewFigures, given: ExportMeta): string[] {
   const meta = exportMeta(given, entries)
   const out = [meta.view]
   if (headerFacts(meta).length || modeLines(meta).length) out.push(ABOUT_SLIDE_TITLE)
-  entries.forEach((e, i) => {
-    if (e.group && e.group !== entries[i - 1]?.group) out.push(e.group.label)
-    out.push(e.figure.title)
+  const slides = deckEntries(entries)
+  slides.forEach((e, i) => {
+    if (dividerBefore(slides, i) && e.group) out.push(e.group.label)
+    out.push(e.figure.deckSummary?.title ?? e.figure.title)
   })
   return out
 }

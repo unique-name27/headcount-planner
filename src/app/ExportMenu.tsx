@@ -23,18 +23,18 @@ import { IconCopy, IconDownload, IconFile, IconSlides, IconTable } from '@/compo
 import { toast, updateToast } from '@/components/toast'
 import { Button, Menu, type MenuItem } from '@/components/ui'
 import { useAnalytics } from '@/data/context'
-import { SAMPLE_COMPANY } from '@/data/sample/base'
 import { moneyLeftOut, moneyOpts, moneyShown } from '@/lib/export/columns'
-import { modeMeta } from '@/lib/export/modeMeta'
 import type { ViewControlTotals } from '@/lib/export/view'
 import { plural } from '@/lib/format'
 import type { ViewDef } from '@/views/types'
-import { accessInputOf, buildExportMeta, planHeaderOf } from './exportMeta'
+import { accessInputOf } from './exportMeta'
+import { exportMetaOf, longSourceOf, tabExportOptions, tabTakesControlTotals } from './tabExport'
 import { copyViewLink } from './viewActions'
 import { renderWholeView } from './wholeView'
 import {
   type ExportKind,
   layoutProgress,
+  tabExportDone,
   WHOLE_VIEW_LABEL,
   wholeViewDone,
   writeProgress,
@@ -59,7 +59,7 @@ export function ExportMenu({
   const canLong = access.can('action:export.long-csv')
   // The forecast's files read the forecast (actual for closed months, forecast for open), as its
   // header's rate set says; every other view's read the version's lines.
-  const longSource = { source: view.key === 'forecast' ? ('forecast' as const) : ('version' as const) }
+  const longSource = longSourceOf(view)
 
   /**
    * The long CSV's control totals for the files' Summary and About slide, where the mode shows the
@@ -79,22 +79,7 @@ export function ExportMenu({
     }
   }
 
-  const metaFor = (tabLabel: string | undefined) =>
-    buildExportMeta({
-      viewLabel: view.label,
-      viewKey: view.key,
-      tabLabel,
-      scopeLabel: ctx.scopeLabel,
-      window: ctx.window,
-      asOf: ctx.asOf,
-      isSample: ctx.isSample,
-      sampleCompany: SAMPLE_COMPANY,
-      standard: ctx.standard,
-      readsData: view.datasets.length > 0,
-      plan: planHeaderOf(ctx, view.key),
-      mode: access.mode,
-      ...modeMeta(access),
-    })
+  const metaFor = (tabLabel: string | undefined) => exportMetaOf(ctx, view, tabLabel)
 
   const runTab = async (kind: ExportKind) => {
     const figures = registry?.list() ?? []
@@ -103,20 +88,24 @@ export function ExportMenu({
       return
     }
     setBusy(kind)
-    const meta = metaFor(view.tabs.find((t) => t.key === tab)?.label)
-    const opts = moneyOpts(ctx)
     try {
-      const [lib, controlTotals] = await Promise.all([import('@/lib/export'), controlTotalsFor()])
-      const withTotals = controlTotals ? { ...opts, controlTotals } : opts
-      if (kind === 'workbook') await lib.exportViewWorkbook(figures, meta, withTotals)
-      else await lib.exportViewDeck(figures, meta, withTotals)
-      const dropped = moneyLeftOut(figures, moneyShown(opts))
-      toast(kind === 'workbook' ? 'Workbook downloaded' : 'Slides downloaded', {
-        tone: 'good',
-        description: `${plural(figures.length, 'figure')} from ${[meta.view, meta.tab].filter(Boolean).join(', ')}.${
-          dropped ? ' Pay amounts were left out.' : ''
-        }`,
+      // A heads-only tab's files carry no control totals: they are the long CSV's cost (review RP-1).
+      const [lib, controlTotals] = await Promise.all([
+        import('@/lib/export'),
+        tabTakesControlTotals(ctx, view, tab) ? controlTotalsFor() : Promise.resolve(undefined),
+      ])
+      const { meta, opts } = tabExportOptions(ctx, view, tab, controlTotals)
+      if (kind === 'workbook') await lib.exportViewWorkbook(figures, meta, opts)
+      else await lib.exportViewDeck(figures, meta, opts)
+      // A deck counts the figures it gives a slide (a summary slide stands in for others, RU-17).
+      const done = tabExportDone({
+        kind,
+        meta,
+        figures: figures.length,
+        ...(kind === 'deck' ? { deckFigures: lib.deckEntries(lib.viewEntries(figures)).length } : {}),
+        payDropped: moneyLeftOut(figures, moneyShown(opts)),
       })
+      toast(done.title, { tone: 'good', description: done.description })
     } catch (err) {
       console.error('View export failed', err)
       toast('The export did not finish', {
@@ -169,6 +158,7 @@ export function ExportMenu({
         kind,
         viewLabel: view.label,
         groups,
+        ...(kind === 'deck' ? { deckFigures: lib.deckEntries(lib.viewEntries(groups)).length } : {}),
         failed,
         payDropped: moneyLeftOut(
           groups.flatMap((g) => g.figures),

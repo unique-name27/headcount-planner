@@ -186,6 +186,27 @@ export interface RegisteredFigure {
    * note): the `Why` column of `withSuppressedFlag` (docs/PLAN.md 14.1 item 2). M4 freeze.
    */
   suppressedWhy?: string
+  /**
+   * A summary slide (docs/PLAN.md 9.8, change C38): in a deck, the figure's slide carries these
+   * numbers above its chart under the summary's own title, and the figures of its tab it names in
+   * `replaces` get no slide of their own. Workbooks and CSVs are unchanged.
+   */
+  deckSummary?: DeckSummary
+}
+
+/** One number of a summary slide, as the screen shows it ("12", "Signed offers, by start date"). */
+export interface DeckNumber {
+  label: string
+  value: string
+  note?: string
+}
+
+/** A summary slide's title, numbers and the figures of its tab it stands in for in a deck. */
+export interface DeckSummary {
+  title: string
+  subtitle?: string
+  numbers: readonly DeckNumber[]
+  replaces: readonly string[]
 }
 
 /** A named part of a tab whose figures export together (`FigureSection` in `@/charts`). */

@@ -113,8 +113,10 @@ describe('every tile, figure and finding links to a registered metric', () => {
     }
     // Ten from M2, M3's two (Plan > Positions' changes in Working and Plan > Transfers' drafts), and
     // Plan > Hiring's four (open to hire by quarter, its bar chart and hiring velocity, 9.7 and C36;
-    // the hires of the last 3 months by location and department, C37).
-    expect(n).toBe(16)
+    // the hires of the last 3 months by location and department, C37), and Plan > Recruiting
+    // summary's three (heads and hiring by month, by quarter ahead and where hiring happened, 9.8 and
+    // C38; its strip is a KpiStrip, not a Figure).
+    expect(n).toBe(19)
   })
 })
 

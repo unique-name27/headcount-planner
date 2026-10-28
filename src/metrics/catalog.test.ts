@@ -109,6 +109,10 @@ const TABLE: Record<string, [string, MetricView[]]> = {
   'plan.hiring.monthsToClose': ['num1', ['plan']],
   'plan.hiring.movesIn': ['int', ['plan']],
   'plan.hiring.recentHires': ['int', ['plan']],
+  // Plan > Recruiting summary (9.8, change C38): heads only, one decimal (the forecast's model).
+  'plan.recruiting.projectedStarts': ['num1', ['plan']],
+  'plan.recruiting.projectedHeads': ['num1', ['plan']],
+  'plan.recruiting.gapToApproved': ['num1', ['plan']],
   'requests.queue.open': ['int', ['requests', 'home']],
   'requests.queue.waiting': ['int', ['requests', 'home']],
   'requests.queue.sentBack': ['int', ['requests']],
@@ -249,8 +253,9 @@ describe('the catalog', () => {
   it('gives every entry a formula, and every data metric a population and a window', () => {
     expect(METRICS.filter((d) => !d.formula?.trim()).map((d) => d.id)).toEqual([])
     const data = METRICS.filter((d) => !readsNoData(d))
-    // 91 before the hiring freeze, plus Plan > Hiring's 16 (9.7, C36) and C37's 2.
-    expect(data.length).toBe(109)
+    // 91 before the hiring freeze, plus Plan > Hiring's 16 (9.7, C36), C37's 2 and Plan > Recruiting
+    // summary's 3 (9.8, C38).
+    expect(data.length).toBe(112)
     expect(data.filter((d) => !d.population?.trim() || !d.window?.trim()).map((d) => d.id)).toEqual([])
   })
 

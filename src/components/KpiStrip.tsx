@@ -435,7 +435,7 @@ const PHONE_TILES = 4
  *   <KpiStrip kpis={kpis} />                 // full width
  *   <KpiStrip kpis={four} span={8} />        // beside a span-4 hero figure on a home page
  *
- * Phones show two tiles a row and, past four tiles, the first four plus "Show all n".
+ * Phones show two tiles a row and, past four tiles (`phoneTiles`), the first four plus "Show all n".
  */
 export function KpiStrip({
   kpis: listed,
@@ -445,6 +445,7 @@ export function KpiStrip({
   judge,
   className,
   tour,
+  phoneTiles = PHONE_TILES,
 }: {
   kpis: Kpi[]
   /** Registry id; give a second strip on the same tab its own id. */
@@ -461,6 +462,11 @@ export function KpiStrip({
    * team's Open to hire, review HU-7).
    */
   tour?: string
+  /**
+   * Tiles a phone shows before "Show all n" (4 by default). A tab whose numbers are the whole point,
+   * such as Plan > Recruiting summary's seven, shows them all.
+   */
+  phoneTiles?: number
 }) {
   const gateOf = useGateFn()
   const { metrics, access, compare, versions } = useAnalytics()
@@ -498,7 +504,8 @@ export function KpiStrip({
     },
   })
   if (!kpis.length) return null
-  const folded = !all && kpis.length > PHONE_TILES
+  const folds = kpis.length > phoneTiles
+  const folded = !all && folds
   return (
     <section
       aria-label={title}
@@ -518,10 +525,10 @@ export function KpiStrip({
           gate={gates[i]}
           empty={empties[i]}
           judge={judge}
-          className={folded && i >= PHONE_TILES ? 'max-md:hidden' : undefined}
+          className={folded && i >= phoneTiles ? 'max-md:hidden' : undefined}
         />
       ))}
-      {kpis.length > PHONE_TILES && (
+      {folds && (
         <div className="col-span-full px-4 py-2 shadow-[0_-1px_0_var(--rule)] md:hidden">
           <button
             type="button"

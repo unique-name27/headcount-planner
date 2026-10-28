@@ -39,5 +39,13 @@ export const PLAN_FIGURES = {
   /** Hires in the last 3 months, by location and department (change C37). */
   hiringRecent: 'plan-hiring-recent',
   hiringReadout: 'plan-hiring-readout',
+  // Recruiting summary (docs/PLAN.md 9.8, change C38): src/access/ids.ts RECRUITING_FIGURE_IDS.
+  recruitingKpis: 'plan-recruiting-kpis',
+  /** Heads and hiring by month: actuals, then future and projected starts, projected attrition and heads. */
+  recruitingMonths: 'plan-recruiting-months',
+  /** By quarter ahead: approved heads, starts, exits, projected heads and the gap. */
+  recruitingQuarters: 'plan-recruiting-quarters',
+  /** Where hiring happened: the top locations and departments by hires over the last 3 closed months. */
+  recruitingWhere: 'plan-recruiting-where',
 } as const
 export type PlanFigureId = (typeof PLAN_FIGURES)[keyof typeof PLAN_FIGURES]

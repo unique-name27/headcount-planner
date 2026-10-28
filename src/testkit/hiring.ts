@@ -145,13 +145,14 @@ function textsOf(s: Seen): string[] {
 
 /**
  * The export header every file a mode writes carries (docs/PLAN.md 14.1: the version, its lock, the
- * rates, the cost and rounding conventions, the mode stamp), as the CSV preamble writes it for Plan >
- * Hiring: the same lines in every file of the mode, about the version and not the module, so a scan
- * of the module's own words leaves them out (`hiringScan`'s `header`).
+ * rates, the cost and rounding conventions, the mode stamp), as the CSV preamble writes it for a Plan
+ * tab (Plan > Hiring unless `tab` names another: Plan > Recruiting summary reads the same module): the
+ * same lines in every file of the mode, about the version and not the module, so a scan of the
+ * module's own words leaves them out (`hiringScan`'s `header`).
  */
-export function exportHeaderOf(ctx: AnalyticsContext): Set<string> {
+export function exportHeaderOf(ctx: AnalyticsContext, tab = 'hiring'): Set<string> {
   const plan = VIEWS.find((v) => v.key === 'plan') ?? null
-  const meta = figureMeta(ctx, plan, 'hiring')
+  const meta = figureMeta(ctx, plan, tab)
   return new Set(
     csvPreamble({ name: '', title: '', columns: [], rows: [] }, meta, moneyShown(moneyOpts(ctx))),
   )

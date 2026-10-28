@@ -169,7 +169,8 @@ describe('the engine never sees an amount (9.7 Privacy)', () => {
 
 describe('the tab (9.7 Placement)', () => {
   it('sits after Openings in the registry and in the policy tab list', () => {
-    const keys = ['overview', 'positions', 'openings', 'hiring', 'transfers']
+    // C38 puts Recruiting summary after Hiring (src/views/recruiting.contracts.test.ts).
+    const keys = ['overview', 'positions', 'openings', 'hiring', 'recruiting', 'transfers']
     expect(VIEW_TABS.plan.map((t) => t.key)).toEqual(keys)
     expect(planView.tabs.map((t) => ({ key: t.key, label: t.label }))).toEqual(VIEW_TABS.plan)
     expect(VIEW_TABS.plan.find((t) => t.key === 'hiring')?.label).toBe('Hiring')
@@ -412,7 +413,9 @@ describe('help (9.7 Help, 14.2)', () => {
     const headings = a.body.flatMap((b) => ('h' in b ? [b.h] : []))
     expect(headings).toContain(HIRING_SECTION_TITLE)
     expect(headings.indexOf('Hiring')).toBe(headings.indexOf('Openings') + 1)
-    expect(headings.indexOf('Transfers')).toBe(headings.indexOf('Hiring') + 1)
+    // C38's Recruiting summary section follows it, as its tab follows Plan > Hiring.
+    expect(headings.indexOf('Recruiting summary')).toBe(headings.indexOf('Hiring') + 1)
+    expect(headings.indexOf('Transfers')).toBe(headings.indexOf('Recruiting summary') + 1)
     const start = a.body.indexOf(HIRING_SECTION[0])
     expect(start).toBeGreaterThan(0)
     expect(a.body.slice(start, start + HIRING_SECTION.length)).toEqual([...HIRING_SECTION])
@@ -515,7 +518,8 @@ describe('the integration (every stub built)', () => {
   })
 
   it('reads Plan > Hiring from its own model wherever a view’s tabs are walked', () => {
-    expect(Object.keys(TAB_MODELS)).toEqual(['plan.hiring'])
+    // C38 adds Plan > Recruiting summary's model (src/views/recruiting.contracts.test.ts).
+    expect(Object.keys(TAB_MODELS)).toEqual(['plan.hiring', 'plan.recruiting'])
     expect(tabModelOf('plan', 'hiring')).toBe(TAB_MODELS['plan.hiring'])
     expect(tabModelOf('plan', 'openings')).toBeNull()
     for (const f of ['./data/engine/snapshots.ts', '../testkit/crawl.ts']) {

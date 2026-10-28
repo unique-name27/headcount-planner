@@ -644,3 +644,212 @@ Headcount Planner verification
 ```
 
 `npm run build:single` then wrote `headcount-planner.html` again from the same tree.
+
+## Recruiting summary, change C38 (27 Oct 2026)
+
+Added after the hiring module at the owner's request of 26 Oct 2026: "one simple view i can show the
+head of recruiting that shows current approved future starts projected starts projected attrition
+and hiring velocity". Its design is PLAN 9.8 and change C38, its contracts CONTRACTS-HIRING section 6.
+It was built on 27 Oct by four builders (model, UI, help, checks), integrated (`npm run verify` passed:
+409 files, 4,585 tests), reviewed by four lenses (spec, UI, numbers, privacy) whose 35 findings were all
+verified real (none refuted), and fixed in one step, whose readings are PLAN R133 to R148 and
+CONTRACTS-HIRING 6.3 (RC1 to RC10). The PC crashed during that step's final verify, so a finish audit
+(fixes, regressions, docs) read the fixed tree on 28 Oct; its 16 findings were verified real and fixed
+here.
+
+### What was built
+
+- **Plan > Recruiting summary** (`plan.recruiting`, after Hiring), one screen with no sub-tabs, shown in
+  every mode over the mode's own scope (Manager: the tree strictly below the seat; HRBP: the unit;
+  Leader: the org; Finance and HR admin: the company under the filters). Policy `tab:plan.recruiting`
+  is S in every mode, Manager's how "Your team, in heads."; every surface it adds (the tab, its four
+  figures and seven tiles) has an explicit decision in every mode, and the access matrix gained 15 rows
+  with no existing line changed. Heads only in every mode, HR admin with "Show pay amounts" on
+  included: no amount, band estimate, offer amount or leave fact in a tile, card, records list, chart,
+  table, export or help sentence; 8.4 holds (nothing about a Manager's own seat or above, and a request
+  rule 3 hides moves no count where its rows sit outside the scope).
+- **Seven numbers** (`RECRUITING_KPIS`), each opening its calculation card: Approved heads (Plan >
+  Hiring's A at the fiscal year end), Current heads (H), Open to hire (O(FY end)), Future starts (signed
+  offers, S), Projected starts (the Working forecast's starts on Open and Planned seats with no signed
+  offer at their fill rate, plus modeled backfills, one decimal, labelled a model), Projected attrition
+  (E: known and modeled exits, with Plan > Hiring's attrition note) and Hiring velocity (the 3-month
+  hire pace, with the 6-month pace and the last 3 months' hires). Future starts and projected starts are
+  always apart; a signed offer is never a projected start, and projected starts never count toward open
+  to hire. A phone shows all seven tiles.
+- **Heads and hiring by month** (`plan-recruiting-months`): the last 12 closed months and any month ended
+  since the last close show hires up and exits down with heads as a line; each month ahead to the year
+  end shows future starts, moves in (their own segment), the rare terms of projected heads when not 0,
+  and projected starts in a light fill with a full-strength dashed outline, projected attrition down,
+  and projected heads as a dashed line; approved heads by the year end are a dotted line, dated in the
+  key. Both axes are titled, the month labels thin to fit, and every month ahead's bars net to the
+  dashed line's step. Each bar opens its own records or card; the keyboard steps through the months,
+  starts and exits alike.
+- **By quarter ahead** (`plan-recruiting-quarters`): per quarter ahead, approved heads by its end, future
+  starts, moves in when any, projected starts, projected attrition, projected heads at its end and the
+  gap to approved heads ("Short by 12.0", "Over by 1.0", "On approved heads" at 0.0).
+- **Where hiring happened** (`plan-recruiting-where`): the top 5 locations and top 5 departments by hires
+  over the last 3 closed months, from Plan > Hiring's C37 table, with "and n more" naming a tie at the
+  cut, and a link to Plan > Hiring.
+- **One-slide deck**: the tab's deck is one "Recruiting summary" slide after "About these numbers" (the
+  seven numbers as the strip shows them, under the data standard's gates, and the chart), standing in
+  for the strip, the quarter table and where hiring happened; a whole-view deck gives the tab that one
+  slide with no divider of the same title, and the toast counts slides. The workbook keeps every
+  figure. The tab's own files, like Plan > Hiring's, carry no long CSV control totals (`HEADS_ONLY_TABS`).
+- **Model**: `src/views/plan/engine/recruitingTab.ts` and `recruitingModel.ts`, its own model cached per
+  context (`planRecruitingModel`), reading Plan > Hiring's engine (`hiringBuiltOf`; `hiringData.ts`
+  `projectedStartsOf` and `HiringPrep.preHires`). Projected heads = current heads − last days on the
+  as-of date + future starts + signed offers past their start date + pre-hires + moves in + projected
+  starts − projected attrition, the three rare terms only when not 0 (R134). Three metrics,
+  `plan.recruiting.projectedStarts`, `plan.recruiting.projectedHeads` and `plan.recruiting.gapToApproved`
+  (num1), after `plan.hiring.recentHires`: 112 data metrics.
+- **Help**: a Recruiting summary section in the view-plan article between Hiring and Transfers, three
+  glossary terms (Projected starts, Projected heads, Gap to approved heads), "projected attrition"
+  finding Expected exits by quarter end, Plan > Recruiting summary in the names scan, and a What's new
+  note in every mode; the view-plan tour stays at its 6 steps.
+
+### The Forecast view change
+
+`forecastFlows` (src/views/forecast/engine/heads.ts, R147, RC10) now counts an opening the run dates in
+a closed month (an Open seat past its time to fill starts on the as-of date, a closed month-end on the
+sample's 30 Sep 2026) in the first open month, where the run counts its heads from. Before, those
+openings were missing from Forecast > Overview's expected starts and October's starts and the year-end
+heads card booked them as "Timing within months" (8.5 heads for Silicon Engineering, 13.9 for the
+company); now the timing step is about 0. The finish audit found that the change also moved an offer
+start dated in a closed month, which with the as-of date before the last close is that month's HRIS
+hire, so the hire counted twice (AG-1); such a start is now left where it is, so each open month's
+starts are the run's own starts row. Plan > Hiring reads only modeled exits from these flows, so none
+of its numbers moved.
+
+### Tests
+
+New test files (counts as run on 28 Oct 2026):
+
+- `src/views/plan/engine/recruitingTab.test.ts` (279): every number equal to Plan > Hiring's, projected
+  starts and heads recomputed from the raw input, the months adding up, records and cards, heads only
+  and the copy, for Managers A, B and C, HRBP, Leader, Finance and HR admin.
+- `src/views/plan/engine/recruitingReview.test.ts` (9): the build review's readings.
+- `src/views/plan/engine/recruitingFixes.test.ts` (41): the fix review's findings, each against the
+  forecast run as control, and the finish audit's 31 Aug and 15 Aug months against the run's flows.
+- `src/views/plan/engine/recruitingRuleThree.test.ts` (2): 8.4 rule 3 inside the scope (RP-2, RP-3).
+- `src/views/plan/engine/recruitingLineage.slow.test.ts` (4): every field the tab lists is read.
+- `src/views/plan/ui/recruitingChart.test.ts` (21): contrast, axes, keys, the domain, month labels, a
+  move in, and the drawn segments netting to the line's step (AF-1).
+- `src/views/plan/ui/recruitingUi.test.ts` (20): the tab's markup, keyboard stops and button names.
+- `src/views/recruiting.contracts.test.ts` (25): registry, policy, catalog, help, copy, and the docs'
+  C38 lines.
+- `src/help/recruiting.test.ts` (27): the help section, glossary, Learn more, tour and What's new.
+- `src/lib/export/deckSummary.test.ts` (11): the summary slide, the outline and the fitted table.
+- `src/app/tabExport.test.ts` (15): heads-only tabs' own files and the menu's toast counts.
+- `src/views/forecast/engine/overdueStarts.test.ts` (7): the Forecast view's openings dated in a closed
+  month, and an as-of date before the last close (AG-1).
+- `src/access/leaks.recruiting.slow.test.ts` (20): the tab read in full in every mode, its own deck and
+  workbook as the menu writes them, 8.4, rule 3 and byte-equal perturbations.
+
+13 new files, 481 tests.
+
+Changed test files: `access/policy/policy.test.ts` (C38's surfaces in every mode), the access snapshot,
+`metrics/catalog.test.ts` (112 data metrics), `metrics/ids.test.ts` (the three ids after
+plan.hiring.recentHires), `metrics/hiringWording.test.ts`, `views/plan/engine/metrics.test.ts` (19
+figures), `views/plan/engine/hiring.perf.test.ts` (the recruiting model under 300 ms in every mode),
+`views/plan/ui/render.test.ts`, `views/hiring.contracts.test.ts`, `help/hiring.test.ts`,
+`charts/core/legend.test.ts`, `app/wholeViewModel.test.ts`, `testkit/crawl.test.ts`,
+`data/sample/sample.test.ts` (the four scopes below by independent code) and
+`access/leaks.hiring.slow.test.ts` (Plan > Hiring's own files, AF-5).
+
+### Review findings, with their fixes and tests
+
+Each fix has a test that fails on the code before it, or, for a docs fix, a docs check.
+
+| Finding | Fix | Test |
+|---|---|---|
+| RS-1 (medium) Approved heads and Current heads opened a records list, not a card | Both open a calculation card of the tab's own that lists Plan > Hiring's records; the tiles have no drill, so the card opens | recruitingFixes "approved heads and current heads open calculation cards", 5 modes |
+| RS-2 (medium), RU-13 (low) A move in was drawn as a future start | Moves in are their own segment, key and keyboard stop, opening the move | recruitingChart "a move in on the chart" (GTM HRBP with an approved move; control with none) |
+| RS-3 (medium) The Forecast view's flows changed with no doc | Recorded as PLAN 6.7, R147, the C38 row and RC10 | overdueStarts.test.ts (all 4 original cases failed before) |
+| RS-4 (low) PLAN still said C38 was not built | 9.8 status, the 9.1 table, the `tab:plan.recruiting` policy row, R133 to R148, the C38 row, CONTRACTS-HIRING section 6; the metrics line followed in AF-6 | recruiting.contracts.test.ts docs checks |
+| RS-5 (low), RU-12 (low) Two names for expected exits | "Projected attrition" everywhere on the tab (R141) | recruitingFixes "one name for expected exits", 4 modes; help/recruiting.test.ts |
+| RS-6 (low) No time budget | The recruiting model under 300 ms in every mode | hiring.perf.test.ts |
+| RU-1 (medium) Projected starts bars at 1.38:1 | A light fill with a full-strength dashed outline, 3:1 on the sheet and the white slide, in the legend and tooltip too | recruitingChart RU-1, light and both dark blocks |
+| RU-2 (medium) Neither axis was labelled | "Hires and exits a month" and "Heads" (`AXIS_TITLES`) | recruitingChart RU-2 |
+| RU-3 (medium), RU-14 (low) The approved line was undated and looked like the projection | A dotted line keyed "Approved heads by 31 Mar 2027", left out of a closed month's tooltip; a `dotted` legend shape | recruitingChart RU-3, RU-14; legend.test.ts |
+| RU-4 (medium), RN-6 (low) The attrition note read as the projection's rate | Plan > Hiring's words, "Attrition (heads) 6.6% over 12 closed months" | recruitingFixes RN-6, 5 modes, equal to Plan > Hiring's note |
+| RU-5 (medium) A mid-month as-of month left out its actual hires and exits | That month carries its hires and exits to date in the closed colours | recruitingFixes RU-5 (HR admin 15 Oct; control 30 Sep); since AF-1 the drawn bars too |
+| RU-6 (low) With no Working forecast the projected heads key and modeled exits words stayed | A key only for a mark drawn; "Known exits from ... to ..." | recruitingFixes RU-6; recruitingChart |
+| RU-7 (low) A year that is over promised marks and printed backwards ranges | The closed months' subtitle, no quarter span or note; 0 to come with a card, approved heads "—" with one | recruitingFixes RU-7 at 15 Apr 2027 |
+| RU-8 (low) Small scopes got wrong axis labels | The bars' domain is at least one head each way | recruitingChart RU-8 (Manager C) |
+| RU-9 (low) The velocity note was too long | "6-month pace 4.5; 13 hires in 3 months", the 3-month pace in the formula | recruitingFixes RU-9, 5 modes, at most 45 characters |
+| RU-10 (low), RN-5 (low) FY28's tiles and quarters gave no window | "to FY28 end" on the flow tiles and "Q1 FY28, Apr to Jun" rows when the year shown does not hold the as-of date; the year end cards titled by the day | recruitingFixes RN-5, RU-10 (control FY27) |
+| RU-11 (low) Phone month labels lost their years | `monthTickLabels`, shared with Plan > Hiring's velocity chart | recruitingChart RU-11 |
+| RU-15 (low) A gap near 0 read "—" and the note named a hidden column | "On approved heads" at 0.0; moves in named only when a quarter holds one | recruitingFixes RN-8, RU-15 |
+| RU-16 (low) The fallback table ran off the slide | `fitRows` sizes it to the box | deckSummary.test.ts |
+| RU-17 (low) A "4 figures" toast for one slide and a doubled title | The toast counts slides (`deckEntries`); no divider of the same title | wholeViewModel.test.ts, deckSummary.test.ts; the menu's own count pinned in AF-4 |
+| RN-1 (high) A month-end as-of date before its close dropped every overdue opening | `projectedStartsOf` counts them in the first month ahead; the as-of month shows as ended | recruitingFixes RN-1 against the run: SE 47.21 at 31 Oct and 47.14 at 30 Nov, the company 163.83 |
+| RN-2 (medium) A signed offer past its start date was in no term | Its own term from the first month ahead, never a future start | recruitingFixes RN-2 (SE 15 Oct, REQ-4202 and REQ-4216) equal to the run's heads |
+| RN-3 (medium) A last day on the as-of date was never an exit | "Last days on the as-of date" | recruitingFixes RN-3 (control: a last day on 1 Oct) |
+| RN-4 (medium) A pre-hire with no req at Offer accepted was in no term | `HiringPrep.preHires`, a term from its hire date; Plan > Hiring's S, M, O and E unchanged | recruitingFixes RN-4 (a 16 Nov pre-hire; 31 Aug) |
+| RN-7 (low) A tie at the top-5 cut was hidden | Named on the more line, "and 4 more locations, 1 tied with the fifth at 3 hires" | recruitingFixes RN-7 (control) |
+| RN-8 (low) Rounded parts did not add up | The note names current heads and the one-decimal rounding | recruitingFixes RN-8 |
+| RP-1 (high) The tab's own deck and workbook showed cost amounts | `HEADS_ONLY_TABS` and `tabExportOptions`, used by the menu and the crawl: no control totals on either heads-only tab's own files | tabExport.test.ts; leaks.recruiting.slow (failed with the check off); Plan > Hiring's own files since AF-5 |
+| RP-2 (low) A request rule 3 hides moved counts inside the scope | Docs: CONTRACTS-HIRING I1 carried into 9.7, 9.8 and hiringData.ts (R146) | recruitingRuleThree.test.ts |
+| RP-3 (low) A hidden Trade's get seats added to a manager's tab | Reading R146: they are the team's seats, as Plan > Overview reads them | recruitingRuleThree.test.ts |
+| RP-4 (low) Manager mode reads the forecast drivers back | Accepted risk, PLAN 15.3 item 10 and README risk 9 | ship/docs.test.ts (README repeats 15.3) |
+
+### The finish audit (28 Oct 2026)
+
+Three audits (fixes, regressions, docs) and their verifiers read the fixed tree; all 16 findings were
+real and none was refuted. Each fix below has a test that fails before it.
+
+| Finding | Fix | Test |
+|---|---|---|
+| AF-1 (medium) The drawn bars did not net to the dashed line when a rare term was not 0 (HR admin at 15 Oct 3 short in October) | The rare terms are segments of their month, each with its own tint, key and keyboard stop when not 0; a last day on a mid-month as-of date is counted once, as an exit to date | recruitingChart AF-1: the net of `segmentsOf` equals the line's step for HR admin 15 Oct, SE 15 Oct, SE with a 30 Sep last day, SE with a 15 Oct last day at 15 Oct, SE 31 Aug and Finance 31 Oct (control SE 30 Sep); all 8 cases failed before |
+| AF-2 (low) At an as-of date before the last close only September was pinned | Pinned: each month ahead is the run's flows, September's heads the run's; R134, RC2 and CONTRACTS-HIRING section 8 item 8 record that projected heads equal the run's heads only from an as-of date on or after the last close (the run's own heads sit below its flows there) | recruitingFixes AF-2 (SE 31 Aug and 15 Aug, Finance 31 Aug; failed before AG-1's fix) |
+| AF-3 (low) A pre-hire's seat still counts in open to hire, unrecorded | Recorded in R134, RC2 and as a lead item (section 8 item 7): A = H + O + S + M holds with that seat in O | recruiting.contracts.test.ts docs checks |
+| AF-4 (low) The deck toast count was not pinned in the menu | `tabExportDone` beside `wholeViewDone`; the menu's `deckEntries` counts in `runTab` and `runView` source-checked | wholeViewModel.test.ts ("1 figure from Plan, Recruiting summary."), tabExport.test.ts |
+| AF-5 (low) Plan > Hiring's own files were not scanned as the menu writes them | `menuFiles`, `FILE_AMOUNT` and `overviewFilesCrawl` moved to src/testkit/recruiting.ts; the same scan on Plan > Hiring in every mode, HR admin with pay on included, Plan > Overview as the control | leaks.hiring.slow.test.ts (failed with the heads-only check off); both slow leak tests run alone |
+| AF-6 (low), AD-2 (low) PLAN 9.8 named no metrics | A "Metrics (section 12 rows)" paragraph: the Plan > Hiring ids it reads and its three num1 ids (112 data metrics) | recruiting.contracts.test.ts |
+| AF-7 (low), AD-1 (low) PLAN 9.8 items 2 and 3 said "projected exits" | "Projected attrition"; item 2 names moves in and points at R134; the Code line says R133 to R148 override 9.8 | recruiting.contracts.test.ts |
+| AG-1 (medium) Before the last close the Forecast view counted the closed month's HRIS hires again in the first open month (HR admin 31 Aug: Expected starts 235.75 against 226.75) | `forecastFlows` keeps a closed-month offer start in place, as the run's `startsByIndex` does | overdueStarts.test.ts: HR admin at 31 Aug and 15 Sep (each open month's starts are the run's starts row, 9 and 4 seats not counted again), HRBP at 31 Aug; all 3 failed before |
+| AD-3 (low) "Every number but projected starts is Plan > Hiring's" | Reworded in the help, README, CONTRACTS-HIRING 6 and 6.2, recruitingTab.ts and recruitingModel.ts: projected starts, projected heads and the gap are the tab's own, and two tiles open the tab's own cards | help/recruiting.test.ts, recruiting.contracts.test.ts |
+| AD-4 (low) The glossary's Projected heads left out R134's terms | The definition names them (the formula string stays, as pinned) | hiringWording.test.ts |
+| AD-5 (low) 15.3 item 10 and README risk 9 credited Plan > Hiring with the backfill rate | The backfill rate and lag come from projected starts and their modeled backfills on Plan > Recruiting summary | recruiting.contracts.test.ts |
+| AD-6 (low) CONTRACTS-HIRING 6.1's export lists were wrong | Every export C38 added is named by a file that exports it, at the right path; `knownExitRows` is module-private again | recruiting.contracts.test.ts (constants and types checked against the row's files) |
+| AD-7 (low) 6.4 did not list overdueStarts.test.ts and the count pins | Listed, with the policy test and the finish audit's tests | recruiting.contracts.test.ts (every listed test file exists) |
+| AD-8 (low) R140 and RC5 said every year end card is titled by the day | Narrowed to approved heads, projected starts and projected attrition | recruiting.contracts.test.ts |
+
+### The sample's numbers (30 Sep 2026, September closed, FY27 Working)
+
+Read from the model by a probe test (deleted after). Q3 and Q4 are the quarters ahead; no scope has a
+move in, a last day on the as-of date, a signed offer past its start date or a pre-hire.
+
+| Scope | Approved, current, open to hire, future starts | Projected starts, projected attrition | Hiring velocity (6-month pace; hires in 3 months), attrition | Q3: approved, future, projected, attrition, projected heads, gap | Q4: approved, future, projected, attrition, projected heads, gap |
+|---|---|---|---|---|---|
+| Silicon Engineering (HRBP) | 604, 556, 39, 9 | 47.26, 23.75 | 4.3 (4.5; 13); 6.6% | 590, 9, 24.71, 11.68, 578.04, Short by 12.0 | 604, 9, 47.26, 23.75, 588.51, Short by 15.5 |
+| Chun-Hsien Kuo's org (Leader) | 603, 555, 39, 9 | 47.24, 23.71 | 4.3 (4.5; 13); 6.6% | 589, 9, 24.71, 11.66, 577.05, Short by 11.9 | 603, 9, 47.24, 23.71, 587.53, Short by 15.5 |
+| Whole company (Finance) | 1,610, 1,456, 132, 22 | 161.71, 79.93 | 13.0 (13.0; 39); 9.4% | 1,567, 22, 92.34, 40.62, 1,529.71, Short by 37.3 | 1,610, 22, 161.71, 79.93, 1,559.77, Short by 50.2 |
+| Sebastian Wagner's team (Manager A) | 9, 7, 2, 0 | 2.14, 0.59 | 0.0 (0.0; 0); 0.0% | 9, 0, 1.88, 0.27, 8.61, Short by 0.4 | 9, 0, 2.14, 0.59, 8.55, Short by 0.5 |
+
+The months ahead's future starts are Plan > Hiring's (SE and the leader's org 3, 3, 3, 0, 0, 0; the
+company 8, 8, 6, 0, 0, 0; Manager A none). Where hiring happened: SE's top locations Munich, San Jose,
+Bengaluru, Ho Chi Minh City and Hsinchu, its departments led by Design Verification, "and 1 more
+department"; the company's led by San Jose and Sales, "and 4 more locations", "and 11 more
+departments"; Manager A has no hire in the last 3 closed months.
+
+### Verify output
+
+This step's checks (28 Oct 2026, `HCP_TEST_WORKERS=2`, no full suite): `npx tsc --noEmit -p .` clean;
+`npx biome check src` clean (1,167 files); the touched and recruiting test files passed (19 unit files,
+527 tests, and `leaks.recruiting.slow.test.ts` alone, 20 tests in 387 s). `leaks.hiring.slow.test.ts`
+passed its new AF-5 describe alone (2 tests), but every full run of the file ended in a worker crash
+(exit code 3221225477, then Node itself segfaulting), as did other files rerun after it, so it and
+`recruitingLineage.slow.test.ts` wait for the final run.
+
+Verify (28 Oct 2026, final run): the PC crashed twice under `npm run verify` (a CPU fault: bugchecks
+0x7F and 0x1AA, and once a fresh `Map` read as having no `get`), so the steps ran apart. Type-check and
+lint clean (1,180 files). Tests: all 413 files and 4,691 tests passed (unit, slow and perf), run in
+resumable batches of 16 unit files on 2 workers and one slow or perf file at a time;
+`leaks.hiring.slow.test.ts` (23 tests), `leaks.recruiting.slow.test.ts` (20) and
+`recruitingLineage.slow.test.ts` (4) passed in full. `src/cost/costDiff.slow.test.ts` failed once with
+`all.get is not a function` on a `Map` its own function had just built, in code C38 does not touch, then
+passed alone (5 of 5) and on the batch rerun. App build passed; one-file build passed
+(`dist-single/index.html` 5,288,048 bytes of the 6,000,000 byte budget, opens from file:// with no
+network request). Browser check in all five modes and at phone width: the numbers above, no amount
+on the tab, no console error, all seven tiles on a phone, no sideways scroll.

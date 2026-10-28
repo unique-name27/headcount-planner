@@ -75,7 +75,7 @@ import { DataTable, type DataTableProps } from './DataTable'
 import { HeldBackState, PreviewBar, PreviewFrame } from './FigureGate'
 import { FIGURE_VIEW_EVENT } from './figureView'
 import { nextFigureOrder, useFigureRegistry } from './registry'
-import type { Column, Definition, ExportMeta } from './types'
+import type { Column, DeckSummary, Definition, ExportMeta } from './types'
 import { useExportMeta } from './useExportMeta'
 
 /** Desktop grid columns; the shared mapping in `@/components/spans` (also used by Section, Readout, EmptyState). */
@@ -158,6 +158,8 @@ export interface FigureProps<T extends object> {
    * note): the `Why` column of every export (docs/PLAN.md 14.1 item 2).
    */
   suppressedWhy?: string
+  /** In a deck, a summary slide: these numbers above the chart, standing in for the figures it names (docs/PLAN.md 9.8). */
+  deckSummary?: DeckSummary
   className?: string
   children?: ReactNode
 }
@@ -188,6 +190,7 @@ export function Figure<T extends object>({
   gate: gated = true,
   exportMeta,
   suppressedWhy,
+  deckSummary,
   className,
   children,
 }: FigureProps<T>) {
@@ -257,6 +260,7 @@ export function Figure<T extends object>({
       tier,
       withheld,
       ...(suppressedWhy && !withheld ? { suppressedWhy } : {}),
+      ...(deckSummary ? { deckSummary } : {}),
     })
   }, [
     registry,
@@ -272,6 +276,7 @@ export function Figure<T extends object>({
     withheld,
     modeHides,
     suppressedWhy,
+    deckSummary,
   ])
   // What the figure declares, rows or not, for the contract checks and the leak crawler (never
   // exported). A figure the mode hides declares nothing.

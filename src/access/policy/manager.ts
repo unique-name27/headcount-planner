@@ -45,6 +45,8 @@ const tabs = tabTable(views, {
     openings: limited('Your team; an accepted offer shows as a date only.'),
     // Shown, with the plan's sentence (9.7, C36): heads only, over the tree strictly below your seat.
     hiring: { access: 'shown', how: HIRING_HOW },
+    // Recruiting summary (9.8, C38): Plan > Hiring's numbers on one screen, the same scope.
+    recruiting: { access: 'shown', how: HIRING_HOW },
     transfers: limited('Your team; names show, amounts do not.'),
   },
   requests: {

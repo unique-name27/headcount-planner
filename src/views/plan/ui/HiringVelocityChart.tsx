@@ -27,10 +27,11 @@ import {
   useChartTheme,
 } from '@/charts'
 import type { Column } from '@/charts/types'
-import { useChartHeight, useNarrow } from '@/components/useNarrow'
-import { formatMonth, formatMonthShort } from '@/lib/dates'
+import { useChartHeight } from '@/components/useNarrow'
+import { formatMonth } from '@/lib/dates'
 import { fmt, MINUS } from '@/lib/format'
 import type { HiringVelocityRow } from '../engine/hiringTab'
+import { bandStep, monthTickLabels } from './monthTicks'
 import { cellOpens, openCellOrCard } from './shared'
 
 /** How much of the sheet a forecast month's bar takes on: the same hue, lighter. */
@@ -118,7 +119,6 @@ export function HiringVelocityChart({
   columns: readonly Column<HiringVelocityRow>[]
 }) {
   const theme = useChartTheme()
-  const narrow = useNarrow()
   const height = useChartHeight('lead')
   const c = colorsOf(theme)
   const order = rows.map((r) => r.month)
@@ -192,10 +192,8 @@ export function HiringVelocityChart({
           marks: [
             gridY(t, { ticks: 5 }),
             axisY(t, { tickFormat: ticks, ticks: 5 }),
-            axisX(t, {
-              tickFormat: (m: string, i: number) =>
-                narrow && i % 2 === 1 ? '' : formatMonthShort(`${m}-01`, i === 0 || m.endsWith('-01')),
-            }),
+            // Thinned to fit, the year on the first label and wherever it changes (review RU-11).
+            axisX(t, { tickFormat: monthTickLabels(order, bandStep(ctx.width, 40, 20, order.length)) }),
             hoverBand(rows, { axis: 'x', value: (r) => r.month, color: t.ink }),
             Plot.barY(rows, {
               x: 'month',

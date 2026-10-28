@@ -4,9 +4,12 @@
  * each limited or hidden one; the tables are plain data (a JSON round trip); the pay, leave and cost
  * surfaces follow the pay and leave views; the as-of date changes only in HR admin; `request.import`
  * is limited for Leader with its reason; the mode homes show; the route helpers agree with the
- * tables; and Plan > Hiring's surfaces (docs/PLAN.md 9.7, change C36) are decided in every mode, its
- * metrics shown in every mode, and every column its drills leave out is one some mode would show.
+ * tables; Plan > Hiring's surfaces (docs/PLAN.md 9.7, change C36) are decided in every mode, its
+ * metrics shown in every mode, and every column its drills leave out is one some mode would show; and
+ * Plan > Recruiting summary's (9.8, change C38) are decided and shown in every mode, named in each
+ * mode's own table right after Hiring.
  */
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   ACTION_IDS,
@@ -16,6 +19,10 @@ import {
   HIRING_SURFACES,
   METRIC_IDS,
   NAMED_SURFACES,
+  RECRUITING_AT,
+  RECRUITING_FIGURE_IDS,
+  RECRUITING_KPI_IDS,
+  RECRUITING_SURFACES,
   VIEW_TABS,
 } from '../ids'
 import { LEAVE_OF, leaveDecisions } from '../leave'
@@ -312,5 +319,88 @@ describe('Plan > Hiring (9.7, changes C36 and C37)', () => {
       }
     // 11: the offer amounts, plus the recruiter note and hiring manager (review HP-2, HP-5).
     expect(n).toBe(11)
+  })
+})
+
+describe('Plan > Recruiting summary (9.8, change C38)', () => {
+  const MODE_FILES: Record<Mode, string> = {
+    manager: './manager.ts',
+    hrbp: './hrbp.ts',
+    leader: './leader.ts',
+    finance: './finance.ts',
+    'hr-admin': './admin.ts',
+  }
+
+  it('decides every recruiting surface explicitly in every mode, and shows each one', () => {
+    const named = new Set(NAMED_SURFACES)
+    // The tab, 4 figures (the seven numbers, heads and hiring by month, by quarter ahead, where hiring
+    // happened) and the 7 tiles. Its drills are Plan > Hiring's, already in HIRING_SURFACES.
+    expect(RECRUITING_SURFACES.length).toBe(1 + 4 + 7)
+    expect(RECRUITING_SURFACES).toEqual([
+      'tab:plan.recruiting',
+      ...RECRUITING_FIGURE_IDS.map((id) => `figure:${id}`),
+      ...RECRUITING_KPI_IDS.map((id) => `kpi:${id}`),
+    ])
+    expect(new Set(RECRUITING_SURFACES).size).toBe(RECRUITING_SURFACES.length)
+    expect(RECRUITING_SURFACES.filter((s) => HIRING_SURFACES.includes(s))).toEqual([])
+    for (const s of RECRUITING_SURFACES) expect(named.has(s), s).toBe(true)
+    for (const m of MODES)
+      for (const s of RECRUITING_SURFACES) {
+        const at = s.startsWith('figure:') || s.startsWith('kpi:') ? RECRUITING_AT : undefined
+        const d = decide(m, s, at)
+        expect(d.how, `${m} ${s}`).not.toBe(notNamed(m))
+        // Heads only, like Plan > Hiring: nothing on the tab is limited or hidden in any mode.
+        expect(d.access, `${m} ${s}`).toBe('shown')
+      }
+  })
+
+  it('names the tab in every mode’s own table, shown, right after Hiring, with Manager mode’s sentence', () => {
+    expect(VIEW_TABS.plan.map((t) => t.key)).toEqual([
+      'overview',
+      'positions',
+      'openings',
+      'hiring',
+      'recruiting',
+      'transfers',
+    ])
+    expect(VIEW_TABS.plan.find((t) => t.key === 'recruiting')?.label).toBe('Recruiting summary')
+    for (const m of MODES) {
+      const tabs = ROLE_POLICY[m].tabs.plan ?? []
+      const keys = tabs.map((t) => t.key)
+      expect(keys.indexOf('recruiting'), m).toBe(keys.indexOf('hiring') + 1)
+      expect(tabs.find((t) => t.key === 'recruiting')?.decision.access, m).toBe('shown')
+      expect(routeShown(m, 'plan', 'recruiting'), m).toBe(true)
+      expect(can(m, 'tab:plan.recruiting'), m).toBe(true)
+      // Named in the mode's own policy file, never left to a default (8.3).
+      const src = readFileSync(new URL(MODE_FILES[m], import.meta.url), 'utf8')
+      expect(src, m).toMatch(/\brecruiting: /)
+    }
+    expect(decide('manager', 'tab:plan.recruiting')).toEqual({ access: 'shown', how: 'Your team, in heads.' })
+    expect(decide('manager', 'tab:plan.recruiting')).toEqual(decide('manager', 'tab:plan.hiring'))
+    expect(firstShownTab('manager', 'plan')?.key).toBe('positions')
+  })
+
+  it('shows the tab’s own metrics in every mode: heads only, so no table hides one', () => {
+    const ids = METRIC_IDS.filter((id) => id.startsWith('plan.recruiting.'))
+    expect(ids).toEqual([
+      'plan.recruiting.projectedStarts',
+      'plan.recruiting.projectedHeads',
+      'plan.recruiting.gapToApproved',
+    ])
+    for (const m of MODES)
+      for (const id of ids) {
+        expect(decide(m, `metric:${id}`).access, `${m} ${id}`).toBe('shown')
+        expect(tableHidesMetricId(ROLE_POLICY[m], id), `${m} ${id}`).toBe(false)
+      }
+  })
+
+  it('keeps Plan > Hiring’s drill rules for the records its counts open', () => {
+    // The tab opens Plan > Hiring's own drills: Manager mode lists seats and offers, never people.
+    for (const m of MODES) {
+      expect(decide(m, 'drill:positions').access, m).not.toBe('hidden')
+      expect(decide(m, 'drill:reqs').access, m).not.toBe('hidden')
+      expect(decide(m, 'drill:workers').access === 'hidden', m).toBe(m === 'manager')
+    }
+    for (const kind of HIRING_DRILL_KINDS) expect(HIRING_DRILL_HIDE[kind].length, kind).toBeGreaterThan(0)
   })
 })

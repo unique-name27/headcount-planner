@@ -14,6 +14,7 @@ tab:plan.overview                          S    S     S     S    H
 tab:plan.positions                         S    L     L     L    L
 tab:plan.openings                          S    S     S     L    L
 tab:plan.hiring                            S    S     S     S    S
+tab:plan.recruiting                        S    S     S     S    S
 tab:plan.transfers                         S    S     S     H    L
 tab:requests.queue                         S    L     L     L    H
 tab:requests.new                           S    S     L     H    L
@@ -146,6 +147,9 @@ metric:plan.hiring.neededPace              S    S     S     S    S
 metric:plan.hiring.monthsToClose           S    S     S     S    S
 metric:plan.hiring.movesIn                 S    S     S     S    S
 metric:plan.hiring.recentHires             S    S     S     S    S
+metric:plan.recruiting.projectedStarts     S    S     S     S    S
+metric:plan.recruiting.projectedHeads      S    S     S     S    S
+metric:plan.recruiting.gapToApproved       S    S     S     S    S
 metric:requests.queue.open                 S    S     S     S    S
 metric:requests.queue.waiting              S    S     S     S    S
 metric:requests.queue.sentBack             S    S     S     S    S
@@ -452,6 +456,17 @@ column:reqs.offerAcceptedDate              S    S     S     S    S
 column:reqs.startDate                      S    S     S     S    S
 column:workers.hireDate                    S    S     S     S    H
 column:workers.terminationDate             S    S     S     S    H
+figure:plan-recruiting-kpis                S    S     S     S    S
+figure:plan-recruiting-months              S    S     S     S    S
+figure:plan-recruiting-quarters            S    S     S     S    S
+figure:plan-recruiting-where               S    S     S     S    S
+kpi:recruiting-approved                    S    S     S     S    S
+kpi:recruiting-current                     S    S     S     S    S
+kpi:recruiting-open                        S    S     S     S    S
+kpi:recruiting-future                      S    S     S     S    S
+kpi:recruiting-projected                   S    S     S     S    S
+kpi:recruiting-attrition                   S    S     S     S    S
+kpi:recruiting-velocity                    S    S     S     S    S
 figure:plan-cost-by-unit                   S    S     S     S    H
 figure:plan-transfers-kpis                 S    S     S     H    S
 figure:plan-transfers-table                S    S     S     H    S

@@ -77,6 +77,19 @@ Everything stays in the browser: there is no server, and files you import never 
     a row per department and location that had a hire, a column per month, the total and the hires
     per month, sub-totals by department and by location, and a total that equals those months'
     hires in the velocity chart. Every count opens the hires it counts.
+- **Recruiting summary** (Plan > Recruiting summary, in every mode over its own scope, heads only):
+  one screen to show the head of recruiting. Seven numbers: approved heads and open to hire for the
+  fiscal year shown, current heads, future starts (signed offers), projected starts (the forecast's
+  model of starts on Open and Planned seats with no signed offer, at their fill rate, plus modeled
+  backfills, always apart from future starts), projected attrition (known and modeled exits) and
+  hiring velocity (the 3-month hire pace). One chart of heads and hiring by month (closed months,
+  then future starts, moves in, projected starts and projected attrition to the year end, projected
+  heads against approved heads), a table by quarter ahead with the gap to approved heads ("Short by",
+  "Over by"), and the top 5 locations and departments by hires over the last 3 closed months. Every
+  number Plan > Hiring also shows is counted the same way and opens the same records; projected
+  starts, projected heads and the gap to approved heads are this tab's own. Its deck is one slide with
+  the seven numbers and the chart, and its own files, like Plan > Hiring's, carry no cost control
+  totals.
 - **Exports**: every figure as CSV, Excel or a copy; a whole view as a workbook or a 16:9 deck; a long
   CSV; and Finance's FP&A load file. Each carries a header (version and lock, comparison, as-of date,
   proration, rates, cost definition, the mode it was made in, filters and rounding) and, beside any
@@ -236,6 +249,11 @@ cost down to $0.1M per team and shows Manager mode no amount at all. These limit
 8. **Small currency groups.** A unit with 1 to 4 costed people in a currency keeps them in its Other,
    and Finance can read their local cost as the unit's FX effect less its shown cost centers'. In the
    sample this is Corporate's one person paid in CAD, the only such group.
+9. **Forecast drivers in Manager mode.** A manager can read the forecast's planning assumptions back
+   from the figures in heads: the fill rate and time to fill, and with modeled exits the backfill rate
+   and lag, from projected starts and their modeled backfills on Plan > Recruiting summary (with one
+   Open seat, a month's projected starts are its fill rate), and attrition from modeled exits on Plan >
+   Hiring. These are planning assumptions, not anyone's pay.
 
 ## Run, test and build
 

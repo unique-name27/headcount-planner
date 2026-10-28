@@ -52,6 +52,7 @@ const tabs = tabTable(views, {
     openings: limited('No offer amounts or one-time hiring costs per req.'),
     // Heads only (9.7, C36): no offer amount or band estimate reaches it, so Finance sees it whole.
     hiring: SHOWN,
+    recruiting: SHOWN,
     transfers: hidden('Transfers move named people. Finance sees their effect in the bridge and in Targets.'),
   },
   requests: {

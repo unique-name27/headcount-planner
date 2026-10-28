@@ -55,14 +55,30 @@
  *    open months, so expected exits run from the as-of date (H5) and the velocity has no gap between
  *    the last close and the shown year (H24; integration, hiring wave). Each month is read from one
  *    forecast only.
+ *  - Projected starts (Plan > Recruiting summary, 9.8, C38; never an engine input) are the same
+ *    forecast's starts on Open and Planned seats, each at its fill rate, and its modeled backfills, by
+ *    open month. An opening the forecast dates in a closed month (an Open seat past its time to fill
+ *    starts on the as-of date, a month-end in a closed month) counts in its first projected month,
+ *    where the forecast counts its heads from; an opening on a seat an approved internal move takes
+ *    (a move in, or a move in effect the HRIS has not recorded) is no projected start, as a signed
+ *    offer's seat is none (the build review of 27 Oct 2026). An opening dated in a month that ends on
+ *    or before the as-of date (a month-end as-of date before its close) counts in the first month
+ *    whose month-end is after it (review RN-1, 27 Oct 2026).
+ *  - A pre-hire (an Employee row the HRIS holds that starts on its hire date after the as-of date, on
+ *    a seat in scope no signed offer or move takes, `HiringPreHire`) is read for the recruiting
+ *    summary's projected heads only: the forecast counts it as a certain start, and Plan > Hiring's
+ *    S(q) and O(q) stay signed offers and moves in (C37, review RN-4).
  *  - In Manager mode the forecast nets the tree's modeled exits over the tree alone (its seats in a
  *    cohort of their own, `ForecastInput.ownCohort`, review HP-1): a known exit at or above the
  *    manager's seat, or of a peer outside the tree, never moves them. Other modes read the Forecast
  *    view's own run.
  *  - A request 8.4 rule 3 hides from the viewer (one on the viewer's own seat or a seat above it, such
- *    as Manager C's Elimination) never moves a count (9.7 Privacy), its effects included. Its plan rows
- *    sit on seats outside the scope (in Manager mode the tree strictly below the viewer's seat, R23),
- *    so no seat, head or offer here reads them; but the forecast's HRIS cohort nets each org's known
+ *    as Manager C's Elimination) never moves a count where its plan rows sit on seats outside the scope
+ *    (9.7 Privacy, in Manager mode the tree strictly below the viewer's seat, R23), its effects
+ *    included. Inside the scope nothing is left out (CONTRACTS-HIRING I1): a mode whose scope holds the
+ *    touched seat (Finance acting as C, the CFO leader) reads the approved state as its other tabs do,
+ *    and a hidden Trade's get seats in a Manager's own tree are the team's seats (reviews RP-2, RP-3,
+ *    27 Oct 2026). Outside the scope no seat, head or offer here reads them; but the forecast's HRIS cohort nets each org's known
  *    exits against its modeled exits, so the holder of a seat such a row ends (clipped at an approved
  *    Elimination's last day, R34) would lower the scope's modeled exits in that month. The forecast
  *    Plan > Hiring reads is therefore the Working forecast without those rows (`hiringForecast`), the
@@ -122,6 +138,24 @@ export interface HiringMoveIn {
   start: ISODate
 }
 
+/**
+ * A hire the HRIS already holds after the as-of date (a pre-hire): an Employee row whose assignment
+ * starts on its hire date after the as-of date, on a seat in scope that no signed offer and no move
+ * takes (review RN-4). The forecast counts it as a certain start on its hire date and gives its seat
+ * no opening, so Plan > Recruiting summary's projected heads count it as its own term (9.8, C38),
+ * under its own ID (`hire:<person>|<day>`). Plan > Hiring's S(q) and O(q) do not read it (C37).
+ */
+export interface HiringPreHire {
+  id: string
+  personId: string
+  positionId: string
+  start: ISODate
+  row: WorkerRow
+}
+
+/** A pre-hire's ID. */
+export const preHireId = (personId: string, start: ISODate): string => `hire:${personId}|${start}`
+
 /** Everything Plan > Hiring reads, built once per context. */
 export interface HiringPrep {
   p: Prep
@@ -143,8 +177,17 @@ export interface HiringPrep {
   offers: ReadonlyMap<string, ReqRow>
   /** Moves into the scope that have not started, by their M(q) ID. */
   moves: ReadonlyMap<string, HiringMoveIn>
+  /** Hires the HRIS holds after the as-of date on a seat no signed offer or move takes, by their ID (RN-4). */
+  preHires: ReadonlyMap<string, HiringPreHire>
   /** The forecast's flows by month (heads), or null with no Working forecast. */
   flows: ReadonlyMap<Month, MonthFlows> | null
+  /**
+   * The same forecast's projected starts by month (Plan > Recruiting summary, 9.8, C38), or null with
+   * no Working forecast: its openings (an opening due by its last actual month counted in its first
+   * projected month) and modeled backfills, less the openings on seats a move takes (`withoutTaken`).
+   * Never an engine input: Plan > Hiring shows no forecast start (C37).
+   */
+  projected: ReadonlyMap<Month, ProjectedStartsMonth> | null
 }
 
 /** An event's key: the person and the day, so each stint of a rehire is its own hire and exit. */
@@ -305,11 +348,135 @@ export function hiringForecast(
   }
 }
 
+/**
+ * One open month's projected starts in the scope (Plan > Recruiting summary, docs/PLAN.md 9.8, change
+ * C38): the forecast's starts on Open and Planned seats with no signed offer, each at its fill rate
+ * (6.7: fill rate and time to fill), and its modeled backfills. Never a signed offer or a pre-hire:
+ * those are future starts. Heads only.
+ */
+export interface ProjectedStartsMonth {
+  month: Month
+  /** Starts on Open and Planned seats, each at its fill rate. */
+  openings: number
+  /** Modeled backfills of modeled exits. */
+  backfills: number
+  /** The openings by seat, each at its fill rate. */
+  openingSeats: ReadonlyMap<string, number>
+  /** openings + backfills, by seat. */
+  seats: ReadonlyMap<string, number>
+}
+
+type ProjectedDraft = {
+  month: Month
+  openings: number
+  backfills: number
+  openingSeats: Map<string, number>
+  seats: Map<string, number>
+}
+
+const projectedMemo = new WeakMap<FPrep, ReadonlyMap<Month, ProjectedStartsMonth>>()
+
+/**
+ * A forecast's projected starts by open month, over its scope (`ProjectedStartsMonth`). An opening
+ * the forecast dates in its last actual month or before (an Open seat past its time to fill starts on
+ * the as-of date, which is in a closed month on a month-end as-of date) counts in its first projected
+ * month, where the run counts the seat's heads from (src/plan/engine/forecast.ts `indexOf` clamps it
+ * there), so no expected head is left out of projected starts. One dated in a month that ends on or
+ * before the as-of date (a month-end as-of date before that month is closed, review RN-1) counts in
+ * the first month whose month-end is after the as-of date, the first month the summary reads.
+ */
+export function projectedStartsOf(fp: FPrep): ReadonlyMap<Month, ProjectedStartsMonth> {
+  const hit = projectedMemo.get(fp)
+  if (hit) return hit
+  const out = new Map<Month, ProjectedStartsMonth>()
+  const run = fp.run
+  if (run) {
+    const ids = fp.scope.ids
+    const flows = forecastFlows(fp)
+    const firstProjected = shiftMonth(run.actualThrough, 1)
+    // The first month whose month-end is after the as-of date: on a month-end as-of date before
+    // its month is closed, the as-of month has ended and nothing lies ahead in it (review RN-1).
+    const asOf = fp.ctx.asOf
+    const asOfMonth = monthKey(asOf)
+    const firstAhead = monthEnd(asOfMonth) > asOf ? asOfMonth : shiftMonth(asOfMonth, 1)
+    const latest = (...ms: Month[]): Month => ms.reduce((a, m) => (m > a ? m : a))
+    const of = (m: Month): ProjectedDraft => {
+      let x = out.get(m) as ProjectedDraft | undefined
+      if (!x) {
+        x = { month: m, openings: 0, backfills: 0, openingSeats: new Map(), seats: new Map() }
+        out.set(m, x)
+      }
+      return x
+    }
+    const add = (seats: Map<string, number>, id: string, v: number) => seats.set(id, (seats.get(id) ?? 0) + v)
+    for (const [id, starts] of run.starts) {
+      if (!ids.has(id)) continue
+      for (const s of starts) {
+        if (s.kind === 'offer') continue
+        // The latest of the month it is dated in, the run's first projected month and the first
+        // month ahead: an opening due by then counts where the run and the summary first read heads.
+        const m = latest(monthKey(s.start), firstProjected, firstAhead)
+        if (!flows.has(m)) continue
+        const x = of(m)
+        x.openings += s.probability
+        add(x.openingSeats, id, s.probability)
+        add(x.seats, id, s.probability)
+      }
+    }
+    for (const [m, f] of flows) {
+      if (m <= run.actualThrough || !f.modeledBackfills) continue
+      const x = of(m)
+      x.backfills += f.modeledBackfills
+      for (const [id, v] of f.backfillSeats) add(x.seats, id, v)
+    }
+  }
+  projectedMemo.set(fp, out)
+  return out
+}
+
+/**
+ * Projected starts without the openings on seats an approved internal move takes (a move in, or a
+ * move in effect the HRIS has not recorded): the move is the seat's head, as a signed offer is, so the
+ * forecast's start on it (it reads the HRIS, which has no assignment there yet) is not one more. The
+ * same months back when no such seat has an opening.
+ */
+function withoutTaken(
+  projected: ReadonlyMap<Month, ProjectedStartsMonth>,
+  taken: ReadonlySet<string>,
+): ReadonlyMap<Month, ProjectedStartsMonth> {
+  if (!taken.size) return projected
+  let changed = false
+  const out = new Map<Month, ProjectedStartsMonth>()
+  for (const [m, p] of projected) {
+    const drop = [...taken].filter((id) => (p.openingSeats.get(id) ?? 0) !== 0)
+    if (!drop.length) {
+      out.set(m, p)
+      continue
+    }
+    changed = true
+    const openingSeats = new Map(p.openingSeats)
+    const seats = new Map(p.seats)
+    for (const id of drop) {
+      const v = openingSeats.get(id) ?? 0
+      openingSeats.delete(id)
+      const left = (seats.get(id) ?? 0) - v
+      if (Math.abs(left) < 1e-12) seats.delete(id)
+      else seats.set(id, left)
+    }
+    let openings = 0
+    for (const v of openingSeats.values()) openings += v
+    out.set(m, { ...p, openings, openingSeats, seats })
+  }
+  return changed ? out : projected
+}
+
 /** The open months Plan > Hiring reads and each one's flows in the scope (see the module comment). */
 export interface HiringForecastFlows {
   /** From the month after the last close to the shown year's last month, each with a forecast. */
   months: readonly Month[]
   flows: ReadonlyMap<Month, MonthFlows>
+  /** Each month's projected starts, from the same forecast as its flows (9.8, C38). */
+  projected: ReadonlyMap<Month, ProjectedStartsMonth>
 }
 
 /**
@@ -328,12 +495,15 @@ export function hiringForecastFlows(
   if (!shown.run) return null
   const last = monthKey(fyEnd)
   const own = forecastFlows(shown)
+  const ownProjected = projectedStartsOf(shown)
   const months: Month[] = []
   const flows = new Map<Month, MonthFlows>()
-  const take = (m: Month, f: MonthFlows | undefined) => {
+  const projected = new Map<Month, ProjectedStartsMonth>()
+  const take = (m: Month, f: MonthFlows | undefined, p: ProjectedStartsMonth | undefined) => {
     if (!f || flows.has(m)) return
     months.push(m)
     flows.set(m, f)
+    if (p) projected.set(m, p)
   }
   const gridStart = shown.run.months[0]
   const asOfYear = fiscalYearOf(ctx.asOf)
@@ -342,16 +512,18 @@ export function hiringForecastFlows(
     const before = v ? hiringForecast(ctx, scopeIds, v) : null
     if (before?.run) {
       const f = forecastFlows(before)
+      const p = projectedStartsOf(before)
       const from =
         lastClose != null && lastClose < before.run.actualThrough ? lastClose : before.run.actualThrough
-      for (const m of before.run.months) if (m > from && m < gridStart && m <= last) take(m, f.get(m))
+      for (const m of before.run.months)
+        if (m > from && m < gridStart && m <= last) take(m, f.get(m), p.get(m))
     }
   }
   // Closed months after the as-of date (a close the as-of date does not know yet) read as open months.
   const from = lastClose != null && lastClose < shown.run.actualThrough ? lastClose : shown.run.actualThrough
-  for (const m of shown.run.months) if (m > from && m <= last) take(m, own.get(m))
+  for (const m of shown.run.months) if (m > from && m <= last) take(m, own.get(m), ownProjected.get(m))
   months.sort()
-  return { months, flows }
+  return { months, flows, projected }
 }
 
 /** An approved internal move the HRIS has not recorded (SC-6): who moves, from and to which seat, from when. */
@@ -511,12 +683,15 @@ export const hiringPrepOf = perContext((ctx: AnalyticsContext): HiringPrep => {
 
   /* moves the HRIS has not recorded, and moves in dated ahead (HN-5) */
   const moves = new Map<string, HiringMoveIn>()
+  // The seats a move takes: no forecast opening on them is a projected start (9.8, C38).
+  const taken = new Set<string>()
   const addMove = (personId: string, positionId: string, start: ISODate) => {
     const seat = seats.get(positionId)
     if (!seat) return
     const id = moveInId(personId, start)
     if (moves.has(id)) return
     moves.set(id, { id, personId, positionId, start })
+    taken.add(positionId)
     // The move takes the seat from its start, as an accepted offer does (H2's first head day).
     if (!seat.filled && !(seat.acceptedStart && seat.acceptedStart < start))
       seats.set(positionId, { ...seat, acceptedStart: start })
@@ -532,6 +707,7 @@ export const hiringPrepOf = perContext((ctx: AnalyticsContext): HiringPrep => {
         current.set(m.personId, { personId: m.personId, positionId: m.to, row: m.row })
         const seat = seats.get(m.to)
         if (seat) seats.set(m.to, { ...seat, filled: true, acceptedStart: null, plannedStart: null })
+        taken.add(m.to)
       }
     } else if (fromIn && !toIn) {
       const last = addDays(m.on, -1)
@@ -551,6 +727,17 @@ export const hiringPrepOf = perContext((ctx: AnalyticsContext): HiringPrep => {
         isActiveOn({ start: x.assignmentStart || x.hireDate, end: endOf(x) }, asOf),
     )
     if (employed) addMove(w.employeeId, seat, start)
+  }
+  /* pre-hires the HRIS holds after the as-of date, on a seat no signed offer or move takes (RN-4) */
+  const preHires = new Map<string, HiringPreHire>()
+  for (const w of p.scope.workers) {
+    const seat = w.positionId
+    const start = w.assignmentStart || w.hireDate
+    if (!seat || !ids.has(seat) || start !== w.hireDate || start <= asOf) continue
+    if ((w.workerType || 'Employee') !== 'Employee' || current.has(w.employeeId) || taken.has(seat)) continue
+    if (seats.get(seat)?.acceptedStart || (w.terminationDate && w.terminationDate < start)) continue
+    const id = preHireId(w.employeeId, start)
+    if (!preHires.has(id)) preHires.set(id, { id, personId: w.employeeId, positionId: seat, start, row: w })
   }
   // Moves in are M(q), never future starts (C37): S(q) holds signed offers only.
   const moveList: HiringMove[] = [...moves.values()]
@@ -639,7 +826,9 @@ export const hiringPrepOf = perContext((ctx: AnalyticsContext): HiringPrep => {
     headsAt: headsAtPeople,
     offers,
     moves,
+    preHires,
     flows,
+    projected: open ? withoutTaken(open.projected, taken) : null,
   }
 })
 

@@ -6,13 +6,16 @@
  *
  * Plan > Hiring reads `planHiringModel`, cached per context. It is no `PlanModel` field because it
  * reads the forecast's exits, and the plan model's budget must not carry a forecast run (docs/PLAN.md
- * 9.7; reading H10 in docs/CONTRACTS-HIRING.md). Its UI reads the same model (`usePlanHiring`).
+ * 9.7; reading H10 in docs/CONTRACTS-HIRING.md). Its UI reads the same model (`usePlanHiring`). Plan >
+ * Recruiting summary reads `planRecruitingModel` (9.8, C38) for the same reason.
  */
 import type { AnalyticsContext } from '@/data/context'
 import { planHiringModel } from '@/views/plan/engine/hiringTab'
+import { planRecruitingModel } from '@/views/plan/engine/recruitingTab'
 
 export const TAB_MODELS: Readonly<Record<string, (ctx: AnalyticsContext) => unknown>> = {
   'plan.hiring': planHiringModel,
+  'plan.recruiting': planRecruitingModel,
 }
 
 /** The model a tab reads on its own, or null when the tab is a part of its view's model. */

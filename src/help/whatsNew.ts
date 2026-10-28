@@ -4,8 +4,9 @@
  *
  * M4 freeze (docs/CONTRACTS-M4.md): the type and the version are frozen; help-trust writes
  * `RELEASE_NOTES` (sentence case, no "!", no em dash between words, plain counts, synthetic data).
- * The four oldest notes are the four milestones of docs/PLAN.md 17; the newest is Plan > Hiring
- * (docs/PLAN.md 9.7, change C36). All are version 0.1.0.
+ * The four oldest notes are the four milestones of docs/PLAN.md 17; then Plan > Hiring (docs/PLAN.md
+ * 9.7, changes C36 and C37), and the newest is Plan > Recruiting summary (9.8, change C38). All are
+ * version 0.1.0.
  *
  * Every mode reads "What's new", and a mode never reads about something it hides (14.2; M4 review
  * HL-10): an item about a page, a tool or an amount some mode hides is written with `only`, under
@@ -52,6 +53,21 @@ const NO_NEW_REQUESTS: Condition = { unless: 'tab:requests.new' }
  * the copy rules.
  */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
+  {
+    date: '2026-10-27',
+    title: 'Recruiting summary',
+    items: [
+      'Plan > Recruiting summary puts hiring on one screen to show, in heads only: approved heads, current heads, open to hire, future starts, projected starts, projected attrition and hiring velocity for the fiscal year shown.',
+      'Future starts are signed offers; projected starts are the forecast’s model of the starts to come on Open and Planned seats with no signed offer. The two always show apart, and projected starts never count toward open to hire.',
+      'One chart, heads and hiring by month: the closed months’ hires, exits and heads, then the future and projected starts, projected attrition and projected heads to the fiscal year end, against approved heads.',
+      'A table by quarter ahead compares projected heads at each quarter end with approved heads by then, "Short by" or "Over by", and a list of where hiring happened shows the top 5 locations and departments by hires over the last 3 closed months.',
+      'Its deck export is one slide after "About these numbers": the seven numbers and the chart. The glossary gains Projected starts, Projected heads and Gap to approved heads.',
+      only(
+        FORECAST,
+        'The forecast counts an Open seat already past its time to fill as an expected start in the first month ahead, the month its heads count from, so its starts by month add up to its heads.',
+      ),
+    ],
+  },
   {
     date: '2026-10-26',
     title: 'Future starts and recent hires',

@@ -60,6 +60,10 @@ export const ID = {
   /* Change C37: moves into the scope (their own row) and the hires of the last 3 closed months by department and location. */
   hiringMovesIn: 'plan.hiring.movesIn',
   hiringRecentHires: 'plan.hiring.recentHires',
+  /* Plan > Recruiting summary (docs/PLAN.md 9.8, change C38): the forecast's starts, and heads ahead. */
+  recruitingProjectedStarts: 'plan.recruiting.projectedStarts',
+  recruitingProjectedHeads: 'plan.recruiting.projectedHeads',
+  recruitingGap: 'plan.recruiting.gapToApproved',
 } as const
 
 export type PlanMetricId = (typeof ID)[keyof typeof ID]
@@ -89,6 +93,16 @@ export const HIRING_METRIC_IDS: readonly PlanMetricId[] = [
   ID.hiringRecentHires,
 ]
 
+/**
+ * Plan > Recruiting summary's own metric ids (docs/PLAN.md 9.8): heads only. Its other numbers are
+ * Plan > Hiring's (`HIRING_METRIC_IDS`), read from the same engine.
+ */
+export const RECRUITING_METRIC_IDS: readonly PlanMetricId[] = [
+  ID.recruitingProjectedStarts,
+  ID.recruitingProjectedHeads,
+  ID.recruitingGap,
+]
+
 /** The settings the view's engine reads through `ctx.metrics` (docs/PLAN.md 12), by role. */
 export const PARAM = {
   /** Planned seats starting within this many days with no req (45). */
@@ -115,6 +129,16 @@ const HIRING_WINDOW = {
   months: 'Each of the last 12 closed months, and each closed quarter of the fiscal year shown.',
   pace: 'The last 3 closed months (the key figure) and the last 6.',
   attrition: 'The last 12 closed months.',
+} as const
+/** What the forecast's projected starts read (9.8, 6.7): its modeled exits' fields, and the seat's level (time to fill). */
+const RECRUITING_STARTS = uses(HIRING_EXITS, ['positions.level'])
+/** Plan > Recruiting summary's window (9.8): the chart's months ahead, its table's quarters and the key figure's year end. */
+const RECRUITING_WINDOW = {
+  /** Projected starts: also the key figure, which reads the fiscal year's last day. */
+  starts:
+    'Each month end and each quarter end after the as-of date, to the last day of the fiscal year shown (the key figure reads that day).',
+  heads:
+    'Each month end and each quarter end after the as-of date, to the last day of the fiscal year shown.',
 } as const
 
 /** The view's dictionary entries, one per id in `ID`, in the same order. */
@@ -574,7 +598,7 @@ export const metrics: MetricDef[] = defineMetrics('plan', [
     id: ID.hiringExpectedExits,
     name: 'Expected exits by quarter end',
     definition:
-      'Exits expected from the as-of date to the quarter’s end: known exits, whose last day is already in the HRIS, plus modeled exits at the attrition rate, as the year-end heads projection counts them. Known and modeled show apart.',
+      'Exits expected from the as-of date to the quarter’s end: known exits, whose last day is already in the HRIS, plus modeled exits at the attrition rate, as the year-end heads projection counts them. Known and modeled show apart. Plan > Recruiting summary shows them as projected attrition.',
     formula: 'known exits + modeled exits, after the as-of date and on or before the quarter end',
     population: HIRING_POPULATION,
     window: HIRING_WINDOW.quarters,
@@ -723,6 +747,47 @@ export const metrics: MetricDef[] = defineMetrics('plan', [
     unit: 'int',
     goodDirection: null,
     uses: uses(F.assignment, ['positions.department', 'positions.location']),
+    owner: OWNER.hrbp,
+  },
+  /* ───────── recruiting summary (Plan > Recruiting summary, 9.8, C38) ───────── */
+  {
+    id: ID.recruitingProjectedStarts,
+    name: 'Projected starts',
+    definition:
+      'The forecast’s model of the starts to come after the as-of date, by a month or quarter end, on approved Open and Planned seats with no signed offer: each seat at its fill rate after its time to fill, plus the backfills that modeled exits reopen. Shown to one decimal and labelled a model. A signed offer is a future start, never a projected one, and projected starts never count toward open to hire.',
+    formula:
+      'Σ forecast starts on Open and Planned seats with no signed offer × fill rate + modeled backfills, as-of date < month-end ≤ month or quarter end',
+    population: HIRING_POPULATION,
+    window: RECRUITING_WINDOW.starts,
+    unit: 'num1',
+    goodDirection: null,
+    uses: RECRUITING_STARTS,
+    owner: OWNER.hrbp,
+  },
+  {
+    id: ID.recruitingProjectedHeads,
+    name: 'Projected heads',
+    definition:
+      'Heads expected at a month or quarter end: current heads, plus the future starts and moves in due by then, plus the projected starts, less the projected attrition (known and modeled exits). When there are any, it also takes off people whose last day is the as-of date, and adds signed offers past their start date that the HRIS has not recorded and pre-hires the HRIS holds, each its own line in the card. Projected starts and modeled exits are a model, so projected heads show to one decimal.',
+    formula: 'current heads + future starts + moves in + projected starts − projected attrition',
+    population: HIRING_POPULATION,
+    window: RECRUITING_WINDOW.heads,
+    unit: 'num1',
+    goodDirection: null,
+    uses: uses(HIRING_SEATS, RECRUITING_STARTS),
+    owner: OWNER.hrbp,
+  },
+  {
+    id: ID.recruitingGap,
+    name: 'Gap to approved heads',
+    definition:
+      'Projected heads at a quarter end ahead less the approved heads by then, to one decimal. Below 0 it reads "Short by", above 0 "Over by". Projected heads are a model, so the gap is never a hiring target: open to hire is what is left to hire.',
+    formula: 'projected heads at quarter end − approved heads by quarter end',
+    population: HIRING_POPULATION,
+    window: HIRING_WINDOW.quarters,
+    unit: 'num1',
+    goodDirection: null,
+    uses: uses(HIRING_SEATS, RECRUITING_STARTS),
     owner: OWNER.hrbp,
   },
 ])

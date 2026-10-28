@@ -3,7 +3,7 @@
  * groups with collision-free figure ids, a render fingerprint to know when an off-screen tab has
  * finished drawing, and the toast copy.
  */
-import type { RegisteredFigure } from '@/charts/types'
+import type { ExportMeta, RegisteredFigure } from '@/charts/types'
 import type { FigureGroup } from '@/lib/export/view'
 import { plural } from '@/lib/format'
 import type { ViewTab } from '@/views/types'
@@ -68,8 +68,10 @@ export function wholeViewDone(args: {
   groups: readonly FigureGroup[]
   failed: readonly ViewTab[]
   payDropped: boolean
+  /** A deck's figures with a slide of their own (`deckEntries`): a summary slide stands in for others (RU-17). */
+  deckFigures?: number
 }): ToastCopy {
-  const figures = args.groups.reduce((n, g) => n + g.figures.length, 0)
+  const figures = args.deckFigures ?? args.groups.reduce((n, g) => n + g.figures.length, 0)
   const tabs = args.groups.filter((g) => g.figures.length).length
   const parts = [`${plural(figures, 'figure')} from ${plural(tabs, 'tab')} of ${args.viewLabel}.`]
   if (args.failed.length)
@@ -82,6 +84,27 @@ export function wholeViewDone(args: {
   return {
     title: args.kind === 'workbook' ? 'Workbook downloaded' : 'Slides downloaded',
     description: parts.join(' '),
+  }
+}
+
+/**
+ * The closing toast of a tab's own export (`runTab`): the figures in the file, a deck's counted by
+ * the slides they get (`deckFigures`, from `deckEntries`: a summary slide stands in for others,
+ * review RU-17), and whether pay amounts were left out. It takes the count, so the menu keeps the
+ * export library lazy (finish audit AF-4).
+ */
+export function tabExportDone(args: {
+  kind: ExportKind
+  meta: Pick<ExportMeta, 'view' | 'tab'>
+  figures: number
+  deckFigures?: number
+  payDropped: boolean
+}): ToastCopy {
+  const n = args.kind === 'deck' ? (args.deckFigures ?? args.figures) : args.figures
+  const where = [args.meta.view, args.meta.tab].filter(Boolean).join(', ')
+  return {
+    title: args.kind === 'workbook' ? 'Workbook downloaded' : 'Slides downloaded',
+    description: `${plural(n, 'figure')} from ${where}.${args.payDropped ? ' Pay amounts were left out.' : ''}`,
   }
 }
 

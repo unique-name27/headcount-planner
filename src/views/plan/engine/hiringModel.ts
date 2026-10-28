@@ -152,7 +152,7 @@ const BEHIND_FINDING = 0.5
 
 /* ───────────── shared reading ───────────── */
 
-interface Built {
+export interface Built {
   h: HiringPrep
   r: HiringResult
   ctx: AnalyticsContext
@@ -171,18 +171,18 @@ interface Built {
   uses: (...groups: readonly (readonly FieldRef[])[]) => FieldRef[]
 }
 
-const quarterEndLabel = (q: HiringQuarter) => `${q.label} end (${formatDate(q.end)})`
+export const quarterEndLabel = (q: HiringQuarter) => `${q.label} end (${formatDate(q.end)})`
 /** "Over by 0.8": a to reach plan below 0 at one decimal, never "Over by 0.0". */
 const overByNum1 = (v: number): string => {
   const shown = fmt(Math.abs(v), 'num1')
   return `Over by ${shown === fmt(0, 'num1') ? 'less than 0.1' : shown}`
 }
 /** "Q3, Oct to Dec". */
-const quarterSpan = (q: HiringQuarter) =>
+export const quarterSpan = (q: HiringQuarter) =>
   `${q.label}, ${formatMonthShort(q.start)} to ${formatMonthShort(q.end)}`
 const num1 = (v: number | null | undefined) => fmt(v, 'num1')
 /** A number as an expression writes it: no grouping, so a count of 1,000 or more never reads as an amount. */
-const plain = (v: number | null | undefined, digits = 0): string =>
+export const plain = (v: number | null | undefined, digits = 0): string =>
   v == null ? DASH : `${v < 0 ? MINUS : ''}${Math.abs(v).toFixed(digits)}`
 
 /** The quarter before one, or null for the first. */
@@ -191,7 +191,7 @@ const previousOf = (b: Built, q: HiringQuarter): HiringQuarter | null =>
 
 /* ───────────── cards ───────────── */
 
-function card(
+export function card(
   b: Built,
   spec: {
     title: string
@@ -222,7 +222,7 @@ function card(
   }
 }
 
-const SOURCE = {
+export const SOURCE = {
   seats: 'Approved seats in Working, in scope',
   people: 'Employees in the HRIS on the as-of date, in scope',
   offers: 'Signed offers: reqs at Offer accepted, not started (dates only)',
@@ -320,7 +320,7 @@ export function seatViewNote(sv: HiringSeatView | null | undefined, openSeats: n
 }
 
 /** Seats in scope an approved change ends before a quarter end (out of A(q), H2), or whose accepted start is after the year end (H22). */
-function seatsOutOf(b: Built, q: HiringQuarter): { ended: number; late: number } {
+export function seatsOutOf(b: Built, q: HiringQuarter): { ended: number; late: number } {
   let ended = 0
   let late = 0
   for (const seat of b.h.input.seats) {
@@ -343,7 +343,11 @@ const aboveWords = (moves: number): string =>
  * Open to hire at a quarter end: approved heads − current heads − future starts (− moves in when the
  * quarter holds any, C37), with the seat view.
  */
-function openCard(b: Built, q: HiringQuarter, title = `Open to hire by ${quarterEndLabel(q)}`): CalcSpec {
+export function openCard(
+  b: Built,
+  q: HiringQuarter,
+  title = `Open to hire by ${quarterEndLabel(q)}`,
+): CalcSpec {
   const t = b.r.table
   const H = t.heads
   const value = q.open
@@ -420,7 +424,7 @@ function openCard(b: Built, q: HiringQuarter, title = `Open to hire by ${quarter
 }
 
 /** The headline's card when the year shown is over (H23): nothing is left to hire in it. */
-function yearOverCard(b: Built, metricId: string, title: string): CalcSpec {
+export function yearOverCard(b: Built, metricId: string, title: string): CalcSpec {
   const fy = b.r.table.fiscalYear
   return card(b, {
     title,
@@ -485,7 +489,7 @@ function newCard(b: Built, q: HiringQuarter): CalcSpec {
 }
 
 /** The months of the forecast whose month-end falls after the as-of date and on or before a day. */
-function forecastMonthsTo(b: Built, end: ISODate): Month[] {
+export function forecastMonthsTo(b: Built, end: ISODate): Month[] {
   return b.h.input.forecast
     .filter((f) => monthEnd(f.month) > b.ctx.asOf && monthEnd(f.month) <= end)
     .map((f) => f.month)
@@ -496,7 +500,7 @@ const knownExitRows = (b: Built, end: ISODate): HiringPersonRow[] =>
   eventRows(b.h.exits, b.h.input.exits, addDays(b.ctx.asOf, 1), end)
 
 /** The exits dated in a month, as rows. */
-const monthRows = (b: Built, which: 'hires' | 'exits', m: Month): HiringPersonRow[] =>
+export const monthRows = (b: Built, which: 'hires' | 'exits', m: Month): HiringPersonRow[] =>
   eventRows(
     which === 'hires' ? b.h.hires : b.h.exits,
     which === 'hires' ? b.h.input.hires : b.h.input.exits,
@@ -508,7 +512,7 @@ const monthRows = (b: Built, which: 'hires' | 'exits', m: Month): HiringPersonRo
  * The seats behind expected exits: each known exit's seat counts 1, each seat its modeled exits. Null
  * when a known exit holds no seat (a person not in plan): its card then counts them in words.
  */
-function exitSeatsDrill(
+export function exitSeatsDrill(
   b: Built,
   title: string,
   known: readonly HiringPersonRow[],
@@ -528,7 +532,7 @@ function exitSeatsDrill(
 }
 
 /** The known exits' inputs beyond the HRIS last days: seats an approved change ends, moves out, people not in plan. */
-function knownInputs(known: readonly HiringPersonRow[]): CalcInput[] {
+export function knownInputs(known: readonly HiringPersonRow[]): CalcInput[] {
   const n = (kind: HiringPersonRow['kind']) => known.filter((x) => x.kind === kind).length
   const out: CalcInput[] = []
   const add = (label: string, v: number, source: string) => {
@@ -541,14 +545,18 @@ function knownInputs(known: readonly HiringPersonRow[]): CalcInput[] {
 }
 
 /** A note on the known exits that hold no seat to list. */
-const noSeatNote = (known: readonly HiringPersonRow[]): string | null => {
+export const noSeatNote = (known: readonly HiringPersonRow[]): string | null => {
   const n = known.filter((x) => !x.positionId).length
   return n
     ? `${plural(n, 'person', 'people')} not in plan ${n === 1 ? 'is' : 'are'} among the known exits and ${n === 1 ? 'holds' : 'hold'} no seat to list.`
     : null
 }
 
-function exitsCard(b: Built, q: HiringQuarter): CalcSpec {
+export function exitsCard(
+  b: Built,
+  q: HiringQuarter,
+  title = `Expected exits by ${quarterEndLabel(q)}`,
+): CalcSpec {
   const e = q.expectedExits
   const months = forecastMonthsTo(b, q.end)
   const known = knownExitRows(b, q.end)
@@ -557,7 +565,7 @@ function exitsCard(b: Built, q: HiringQuarter): CalcSpec {
     : 'No open forecast month'
   const noSeat = noSeatNote(known)
   return card(b, {
-    title: `Expected exits by ${quarterEndLabel(q)}`,
+    title,
     metricId: ID.hiringExpectedExits,
     value: e?.total ?? null,
     format: 'num1',
@@ -574,7 +582,7 @@ function exitsCard(b: Built, q: HiringQuarter): CalcSpec {
         'num1',
       ),
     ],
-    rows: e ? exitSeatsDrill(b, `Expected exits by ${quarterEndLabel(q)}`, known, months) : null,
+    rows: e ? exitSeatsDrill(b, title, known, months) : null,
     note: [noSeat, 'Modeled exits are exact here; the table rounds them to one decimal.']
       .filter(Boolean)
       .join(' '),
@@ -684,15 +692,15 @@ const headsAtEnd = (b: Built, q: HiringQuarter): readonly HiringPersonRow[] =>
   b.h.headsAt.get(q.end.slice(0, 7) as Month) ?? []
 
 /** What a number opens, built on click: its records, else its calculation card. */
-interface Opens {
+export interface Opens {
   drill: (() => DrillSpec | null) | null
   calc: (() => CalcSpec) | null
 }
 
-const NOTHING: Opens = { drill: null, calc: null }
+export const NOTHING: Opens = { drill: null, calc: null }
 
 /** A count of people: its records, or (Manager mode, someone with no seat) a card that counts them. */
-function peopleCount(
+export function peopleCount(
   b: Built,
   spec: {
     title: string
@@ -745,7 +753,7 @@ function peopleCount(
 }
 
 /** Current heads' split as a note (9.7: "Shown with its split"): "1,450 heads in approved seats and 6 people not in plan." (review HU-12). */
-function headsSplitNote(b: Built): string {
+export function headsSplitNote(b: Built): string {
   const H = b.r.table.heads
   // A count word after every number, so a company-wide count never reads as an amount (T10).
   const parts = [
@@ -758,7 +766,7 @@ function headsSplitNote(b: Built): string {
 }
 
 /** Future starts: their signed offers, as reqs with dates only (C37: signed offers only, never a move in). */
-function futureStartsOpens(b: Built, ids: readonly string[], title: string, subtitle?: string): Opens {
+export function futureStartsOpens(b: Built, ids: readonly string[], title: string, subtitle?: string): Opens {
   return {
     drill: () =>
       offersDrill(b.h, title, ids, {
@@ -771,7 +779,7 @@ function futureStartsOpens(b: Built, ids: readonly string[], title: string, subt
 }
 
 /** The Future starts tile's card: the signed offers due by the year end, which it lists (dates only). */
-function futureStartsCard(b: Built, ids: readonly string[], title: string): CalcSpec {
+export function futureStartsCard(b: Built, ids: readonly string[], title: string): CalcSpec {
   const n = ids.length
   return card(b, {
     title,
@@ -794,7 +802,7 @@ function futureStartsCard(b: Built, ids: readonly string[], title: string): Calc
 }
 
 /** Moves in (C37): the seats the people move into, in every mode (a move holds no req). */
-function movesOpens(b: Built, ids: readonly string[], title: string): Opens {
+export function movesOpens(b: Built, ids: readonly string[], title: string): Opens {
   const counts = new Map<string, number>()
   for (const id of ids) {
     const seat = b.h.moves.get(id)?.positionId
@@ -817,7 +825,7 @@ function movesOpens(b: Built, ids: readonly string[], title: string): Opens {
 /* ───────────── the quarter table ───────────── */
 
 /** A cell's records or card, by row and quarter. */
-function cellOf(b: Built, key: HiringRowKey, q: HiringQuarter): Opens {
+export function cellOf(b: Built, key: HiringRowKey, q: HiringQuarter): Opens {
   const none = NOTHING
   const sub = subtitleOf(quarterSpan(q), b.ctx.scopeLabel)
   const t = b.r.table
@@ -1500,7 +1508,7 @@ function paceNoteOf(b: Built): string | null {
 
 /* ───────────── key figures ───────────── */
 
-function paceCard(b: Built, which: 'hires' | 'exits'): CalcSpec {
+export function paceCard(b: Built, which: 'hires' | 'exits'): CalcSpec {
   const v = b.r.velocity.paces
   const value = which === 'hires' ? v.hires3 : v.exits3
   const ms = b.pace.months
@@ -1902,14 +1910,28 @@ function findingsOf(b: Built): Finding[] {
 
 /* ───────────── the model ───────────── */
 
-/** Plan > Hiring's model for a context (uncached; `planHiringModel` caches it). */
-export function computeHiring(ctx: AnalyticsContext): PlanHiring {
+const builtMemo = new WeakMap<AnalyticsContext, Built>()
+
+/**
+ * The engine's result over the context's input and the reading every card shares, cached per
+ * context: Plan > Hiring and Plan > Recruiting summary (./recruitingModel.ts, 9.8) read the same one,
+ * so no number of theirs is computed twice or two ways.
+ */
+export function hiringBuiltOf(ctx: AnalyticsContext): Built {
+  const hit = builtMemo.get(ctx)
+  if (hit) return hit
+  const b = buildOf(ctx)
+  builtMemo.set(ctx, b)
+  return b
+}
+
+function buildOf(ctx: AnalyticsContext): Built {
   const h = hiringPrepOf(ctx)
   const r = hiringOf(h.input)
   const actual = r.velocity.months.filter((m) => m.kind === 'actual')
   const paceMonths = actual.length >= PACE_MONTHS[0] ? actual.slice(-PACE_MONTHS[0]) : []
   const end = r.table.quarters[r.table.quarters.length - 1]
-  const b: Built = {
+  return {
     h,
     r,
     ctx,
@@ -1925,6 +1947,12 @@ export function computeHiring(ctx: AnalyticsContext): PlanHiring {
     anyMoves: r.table.quarters.some((q) => (q.movesIn ?? 0) > 0),
     uses: h.p.uses,
   }
+}
+
+/** Plan > Hiring's model for a context (uncached; `planHiringModel` caches it). */
+export function computeHiring(ctx: AnalyticsContext): PlanHiring {
+  const b = hiringBuiltOf(ctx)
+  const r = b.r
   return {
     fiscalYear: r.table.fiscalYear,
     kpis: kpisOf(b),

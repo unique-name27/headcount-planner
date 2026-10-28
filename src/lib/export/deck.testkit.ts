@@ -14,6 +14,8 @@ export interface FakeSlide {
   tables: string[][][]
   notes: string[]
   images: number
+  /** Where each text and table sits (inches from the top), in the order added (review RU-16). */
+  boxes: { kind: 'text' | 'table'; y: number; h: number; text?: string }[]
 }
 
 /** One deck as written. */
@@ -34,14 +36,17 @@ export function resetDecks(): void {
 
 type Run = string | { text?: string }
 type Cell = string | { text?: string }
+type Box = { y?: number; h?: number; rowH?: number }
 
 const runText = (r: Run): string => (typeof r === 'string' ? r : (r.text ?? ''))
 
 class Slide {
   background: unknown = null
   constructor(private readonly data: FakeSlide) {}
-  addText(text: string | readonly Run[]): this {
-    this.data.texts.push(typeof text === 'string' ? text : text.map(runText).join('\n'))
+  addText(text: string | readonly Run[], opts: Box = {}): this {
+    const t = typeof text === 'string' ? text : text.map(runText).join('\n')
+    this.data.texts.push(t)
+    this.data.boxes.push({ kind: 'text', y: opts.y ?? 0, h: opts.h ?? 0, text: t })
     return this
   }
   addShape(): this {
@@ -51,8 +56,9 @@ class Slide {
     this.data.images++
     return this
   }
-  addTable(rows: readonly (readonly Cell[])[]): this {
+  addTable(rows: readonly (readonly Cell[])[], opts: Box = {}): this {
     this.data.tables.push(rows.map((r) => r.map((c) => (typeof c === 'string' ? c : (c.text ?? '')))))
+    this.data.boxes.push({ kind: 'table', y: opts.y ?? 0, h: (opts.rowH ?? 0) * rows.length })
     return this
   }
   addNotes(notes: string): this {
@@ -96,7 +102,7 @@ export class FakePptx {
     return this.deck.subject
   }
   addSlide(): Slide {
-    const data: FakeSlide = { texts: [], tables: [], notes: [], images: 0 }
+    const data: FakeSlide = { texts: [], tables: [], notes: [], images: 0, boxes: [] }
     this.deck.slides.push(data)
     return new Slide(data)
   }

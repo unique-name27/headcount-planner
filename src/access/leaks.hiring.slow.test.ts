@@ -35,6 +35,10 @@
  *    manager below C read the same tab across a last day on their own row, on each holder of a seat
  *    above, and on a peer of the same unit and department outside the tree; a last day inside the tree
  *    moves it, and HR admin's tab moves with them.
+ *  - The tab's own deck and workbook as the Export menu writes them (`tabExportOptions`, review RP-1)
+ *    carry no amount on any slide or on the Summary sheet, frame slides included, in any mode, HR
+ *    admin with the switch on included; Plan > Overview's own files carry the long CSV's loaded cost
+ *    as the control (src/testkit/recruiting.ts `menuFiles`, finish audit AF-5).
  *
  * Every part has a non-vacuity count and a control that must differ. The clock is pinned.
  */
@@ -59,6 +63,7 @@ import {
 import { amountHits, holding, keysOf, type Secrets, secretsOf } from '@/testkit/leaks'
 import { MemoryStorage } from '@/testkit/memoryStorage'
 import { leaveChanges, positionPerturbations } from '@/testkit/perturbations'
+import { FILE_AMOUNT, menuFiles, overviewFilesCrawl } from '@/testkit/recruiting'
 import {
   ctxAs,
   leakSample,
@@ -336,6 +341,37 @@ describe('no amount, band estimate, offer amount or leave fact, in any mode (9.7
 })
 
 /* ───────────── nothing about a Manager's own seat or above ───────────── */
+
+/* ───────────── the tab's own files, as the Export menu writes them (review RP-1, finish audit AF-5) ───────────── */
+
+describe('the tab’s own deck and workbook as the Export menu writes them (review RP-1, finish audit AF-5)', () => {
+  it('carry no amount on any slide or on the Summary sheet in any mode, HR admin with Show pay amounts on included', async () => {
+    for (const [key, make] of READERS) {
+      const ctx = make(s)
+      const c = hiringCrawl(ctx)
+      const { lines, sheets } = await menuFiles(c, 'plan.hiring')
+      expect(c.errors, key).toEqual([])
+      expect(lines.length, key).toBeGreaterThan(5)
+      if (ctx.access.can('action:export.view')) expect(sheets[0], key).toBe('Summary')
+      // No frame exemption: the title slide, About these numbers and the Summary sheet are scanned too.
+      expect(lines.filter((t) => FILE_AMOUNT.test(t)).slice(0, 3), key).toEqual([])
+    }
+  }, 900_000)
+
+  it('control: Plan > Overview’s own files carry the long CSV’s loaded cost in USD for HRBP, Finance and HR admin', async () => {
+    for (const [key, ctx] of [
+      ['hrbp-se', personaCtx('hrbp-se', { sample: s })],
+      ['finance-fpa', personaCtx('finance-fpa', { sample: s })],
+      ['hr-admin', sampleCtx('hr-admin', { sample: s })],
+    ] as const) {
+      const { lines } = await menuFiles(overviewFilesCrawl(ctx), 'plan.overview')
+      expect(
+        lines.some((t) => /control totals/i.test(t) && /\bloaded\b/.test(t) && /\bUSD\b/.test(t)),
+        key,
+      ).toBe(true)
+    }
+  }, 900_000)
+})
 
 describe("nothing about a Manager's own seat or above (8.4 rule 3, R23)", () => {
   it('holds no row, cell or finding for the own seat, and nothing of a seat above or its holder', () => {

@@ -25,8 +25,8 @@ const views: Record<PolicyPlace, Decision> = {
   audit: SHOWN,
 }
 
-// Plan > Hiring is named for the hiring freeze (9.7, C36); every other tab is shown by default.
-const adminTabs = tabTable(views, { plan: { hiring: SHOWN } })
+// Plan > Hiring (9.7, C36) and Recruiting summary (9.8, C38) are named; every other tab is shown by default.
+const adminTabs = tabTable(views, { plan: { hiring: SHOWN, recruiting: SHOWN } })
 
 const SWITCH_ON = limited('With Show pay amounts on.')
 

@@ -1,12 +1,12 @@
 /**
  * Chart legend: swatches that mirror the mark (rect for bars and areas, a short line for lines,
- * a dot for points, a diamond for diamond markers, a medal for tier-coded charts) with ink labels,
+ * a dashed one for dashed lines, a dot for points, a diamond for diamond markers, a medal for tier-coded charts) with ink labels,
  * or a continuous ramp with its end labels. Identity sits in the swatch; the text never wears the series color.
  */
 import { cx } from '@/components/ui'
-import { type LegendShape, type LegendSpec, medalPath } from './core/legend'
+import { type LegendShape, type LegendSpec, lineBackground, medalPath } from './core/legend'
 
-function Swatch({ color, shape = 'rect' }: { color: string; shape?: LegendShape }) {
+function Swatch({ color, shape = 'rect', stroke }: { color: string; shape?: LegendShape; stroke?: string }) {
   if (shape === 'medal') {
     return (
       <svg aria-hidden="true" width="10" height="12" viewBox="0 -6 10 12" className="shrink-0">
@@ -30,6 +30,12 @@ function Swatch({ color, shape = 'rect' }: { color: string; shape?: LegendShape 
       />
     )
   }
+  const line = lineBackground(shape, color)
+  if (line) {
+    return (
+      <span aria-hidden="true" className="inline-block h-[2px] w-3.5 shrink-0" style={{ background: line }} />
+    )
+  }
   const size =
     shape === 'line'
       ? 'h-[2px] w-3.5 rounded-mark'
@@ -37,7 +43,11 @@ function Swatch({ color, shape = 'rect' }: { color: string; shape?: LegendShape 
         ? 'size-2 rounded-full'
         : 'size-2.5 rounded-mark'
   return (
-    <span aria-hidden="true" className={cx('inline-block shrink-0', size)} style={{ background: color }} />
+    <span
+      aria-hidden="true"
+      className={cx('inline-block shrink-0', size)}
+      style={{ background: color, ...(stroke ? { boxShadow: `inset 0 0 0 1.5px ${stroke}` } : {}) }}
+    />
   )
 }
 
@@ -65,7 +75,7 @@ export function Legend({ spec, className }: { spec: LegendSpec; className?: stri
     <ul className={cx('flex flex-wrap items-center gap-x-4 gap-y-1 text-meta text-ink-2', className)}>
       {spec.items.map((it, i) => (
         <li key={`${it.label}-${i}`} className="inline-flex items-center gap-1.5">
-          <Swatch color={it.color} shape={it.shape} />
+          <Swatch color={it.color} shape={it.shape} {...(it.stroke ? { stroke: it.stroke } : {})} />
           {it.label}
         </li>
       ))}

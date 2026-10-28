@@ -147,6 +147,7 @@ interface LegendLayoutItem {
   label: string
   color: string
   shape: LegendShape
+  stroke?: string
 }
 
 function layoutSwatches(spec: Extract<LegendSpec, { kind: 'swatch' }>, maxWidth: number) {
@@ -159,7 +160,14 @@ function layoutSwatches(spec: Extract<LegendSpec, { kind: 'swatch' }>, maxWidth:
       x = 0
       row++
     }
-    items.push({ x, y: row * 18, label: it.label, color: it.color, shape: it.shape ?? 'rect' })
+    items.push({
+      x,
+      y: row * 18,
+      label: it.label,
+      color: it.color,
+      shape: it.shape ?? 'rect',
+      ...(it.stroke ? { stroke: it.stroke } : {}),
+    })
     x += w
   }
   return { items, height: (row + 1) * 18 }
@@ -207,6 +215,11 @@ export async function composeSvg(svg: SVGSVGElement, opts: ImageOptions = {}): P
       const cy = y + it.y + 9
       const sw = swatchSvg(it.shape, pad + it.x, cy)
       out.append(el(sw.tag, { ...sw.attrs, fill: it.color }))
+      // A light fill keeps its full-strength outline in the export too (LegendSwatch.stroke).
+      if (it.stroke && it.shape === 'rect') {
+        const o = swatchSvg('outline', pad + it.x, cy)
+        out.append(el(o.tag, { ...o.attrs, fill: it.stroke }))
+      }
       const label = el('text', { x: pad + it.x + 16, y: cy, dy: '0.32em', fill: t.ink2 }, it.label)
       label.setAttribute('style', 'font-size:12px')
       out.append(label)

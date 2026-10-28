@@ -1,6 +1,6 @@
 /**
- * Plan (docs/PLAN.md 9.1 and 9.4): Overview, Positions, Openings, Hiring (9.7, change C36) and
- * Transfers for the scope and the version shown, against the comparison. From M3 an HRBP (and HR admin) changes Open and Planned
+ * Plan (docs/PLAN.md 9.1 and 9.4): Overview, Positions, Openings, Hiring (9.7, change C36),
+ * Recruiting summary (9.8, change C38) and Transfers for the scope and the version shown, against the comparison. From M3 an HRBP (and HR admin) changes Open and Planned
  * seats in Working on Positions (`SeatEdit`) and processes transfers on Transfers (`TransferForm`),
  * each through the write hook.
  *
@@ -23,6 +23,7 @@ import { usePlan } from './ui/model'
 import { Openings } from './ui/Openings'
 import { Overview } from './ui/Overview'
 import { Positions } from './ui/Positions'
+import { Recruiting } from './ui/Recruiting'
 import { Transfers } from './ui/Transfers'
 
 // The position card's standard heads: the seat's weight at the trade rates of the shown version's year.
@@ -46,6 +47,9 @@ function Body({ tab }: { tab: string }) {
     case 'hiring':
       // Its own model (src/views/plan/engine/hiringTab.ts), read inside the tab.
       return <Hiring />
+    case 'recruiting':
+      // Its own model too (src/views/plan/engine/recruitingTab.ts, 9.8).
+      return <Recruiting />
     case 'transfers':
       return <Transfers m={m} />
     default:
@@ -94,6 +98,7 @@ export const view: ViewDef = {
     { key: 'positions', label: 'Positions' },
     { key: 'openings', label: 'Openings' },
     { key: 'hiring', label: 'Hiring' },
+    { key: 'recruiting', label: 'Recruiting summary' },
     { key: 'transfers', label: 'Transfers' },
   ],
   View,

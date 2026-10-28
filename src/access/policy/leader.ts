@@ -50,6 +50,7 @@ const tabs = tabTable(views, {
     openings: SHOWN,
     // Heads only (9.7, C36): shown in every mode, over the mode's own scope.
     hiring: SHOWN,
+    recruiting: SHOWN,
     transfers: SHOWN,
   },
   requests: {

@@ -5,7 +5,8 @@
  * what it is:
  *
  *  - the folder headlines of the views the mode shows, and each shown tab's model (its part of the
- *    view's model, or a model of its own: Plan > Hiring's `planHiringModel`, `TAB_MODELS`): its KPI
+ *    view's model, or a model of its own: Plan > Hiring's `planHiringModel` and Plan > Recruiting
+ *    summary's `planRecruitingModel`, `TAB_MODELS`): its KPI
  *    tiles (`kpisInMode`), readout findings (`findingsInMode`), heroes, figures (the columns the mode
  *    keeps, `visibleColumns`, and every cell), and the words around them;
  *  - every records list a tile, finding, figure cell or card opens, as the records panel lists it
@@ -29,7 +30,9 @@
  *    (`crawlAll`), each tab's workbook (`buildWorkbook`), each view's whole-view workbook
  *    (`buildViewWorkbook`, every tab, with the long CSV's control totals), all written with ExcelJS
  *    and read back cell by cell with SheetJS, and each view's deck (`exportViewDeck`, written by
- *    pptxgenjs and read back slide by slide from the file's XML);
+ *    pptxgenjs and read back slide by slide from the file's XML), a tab's summary slide where its
+ *    screen registers one (`DECK_SUMMARIES`, docs/PLAN.md 9.8 item 5); a tab's own deck, as its
+ *    Export menu writes it, on request (`tabDeck`);
  *  - the request texts the mode may read (comments by `commentVisible`; step notes, change reasons
  *    and freeze-exception reasons through `managerText`), beside the request cards of Mine and
  *    Approvals that the requests model holds;
@@ -60,9 +63,12 @@ import { findingsInMode, kpisInMode } from '@/access/numbers'
 import { inScope, rowsInScope } from '@/access/records'
 import { commentVisible, managerText, requestView, type Viewer, viewerOf } from '@/access/visibility'
 import { buildExportMeta, planHeaderOf } from '@/app/exportMeta'
+import { menuControlTotals } from '@/app/longExport'
 import { formulaSections } from '@/app/settings/model'
+import { longSourceOf, tabExportOptions, tabTakesControlTotals } from '@/app/tabExport'
 import { WHOLE_VIEW_LABEL } from '@/app/wholeViewModel'
-import type { Column, ExportMeta, RegisteredFigure } from '@/charts/types'
+import type { Column, DeckSummary, ExportMeta, RegisteredFigure } from '@/charts/types'
+import { gateFor } from '@/components/tier/tierModel'
 import type { AnalyticsContext } from '@/data/context'
 import { SAMPLE_COMPANY } from '@/data/sample'
 import type { ISODate, RequestType, ViewKey } from '@/data/schema'
@@ -71,6 +77,7 @@ import { recordsOutsideLine } from '@/drill/guard'
 import { positionCardModel } from '@/drill/position'
 import { buildDrillTable, POSITION_KEY, rowPosition } from '@/drill/records'
 import { requestsOf } from '@/drill/seats'
+import { asOfLine } from '@/drill/subtitle'
 import { type DrillSource, type DrillSpec, drillSpec, resolveDrill } from '@/drill/types'
 import { articlesInMode, glossaryInMode, toursInMode } from '@/help/access'
 import { ARTICLES } from '@/help/articles'
@@ -112,6 +119,8 @@ import { forecastModel } from '@/views/forecast/engine'
 import { homeModel } from '@/views/home/engine'
 import { planModel } from '@/views/plan/engine'
 import { seatEditOf, seatEditsOf, transferOptions } from '@/views/plan/engine/edits'
+import { PLAN_FIGURES } from '@/views/plan/engine/figures'
+import type { PlanRecruiting } from '@/views/plan/engine/recruitingTab'
 import { VIEWS, visibleViews } from '@/views/registry'
 import {
   emptyForm,
@@ -220,8 +229,9 @@ export interface CrawlOptions {
   /** Only these views (default every view the mode shows). */
   views?: readonly ViewKey[]
   /**
-   * Only these tabs of a tabbed view, as `<view>.<tab>` ("plan.hiring"; default every tab the mode
-   * shows). Home and My team are one model each and are read whole whatever this says.
+   * Only these tabs of a tabbed view, as `<view>.<tab>` ("plan.hiring", "plan.recruiting"; default
+   * every tab the mode shows). Home and My team are one model each and are read whole whatever this
+   * says.
    */
   tabs?: readonly string[]
   /**
@@ -427,8 +437,15 @@ export class Crawl {
   readonly errors: CrawlError[] = []
   /** Every figure the mode showed, by id (the first place it was drawn). */
   readonly figures = new Map<string, FigureSnapshot>()
-  /** Export tables per view and tab, for the workbooks. */
-  readonly tables = new Map<string, { view: ViewDef | null; tab: string | null; tables: ExportTable[] }>()
+  /** Export tables per view and tab, for the workbooks, each with the id of the figure it was read from. */
+  readonly tables = new Map<
+    string,
+    { view: ViewDef | null; tab: string | null; tables: ExportTable[]; ids: string[] }
+  >()
+  /** The summary slide a tab's screen registers for its deck (`DECK_SUMMARIES`), by `<view>.<tab>`. */
+  readonly deckSummaries = new Map<string, TabDeckSummary>()
+  /** The models of the tabs with a summary slide, by `<view>.<tab>`, for `loadDeckSummaries`. */
+  private readonly summaryParts = new Map<string, { def: ViewDef; part: unknown }>()
   /** Positions the crawl can open a card for. */
   readonly positions = new Set<string>()
   strings = 0
@@ -681,10 +698,11 @@ export class Crawl {
       const key = `${at.view ?? 'page'}.${at.tab ?? ''}`
       let group = this.tables.get(key)
       if (!group) {
-        group = { view: at.def ?? null, tab: at.tab ?? null, tables: [] }
+        group = { view: at.def ?? null, tab: at.tab ?? null, tables: [], ids: [] }
         this.tables.set(key, group)
       }
       group.tables.push(table)
+      group.ids.push(f.id)
     }
   }
 
@@ -1039,6 +1057,8 @@ export class Crawl {
             ? model
             : (model as Record<string, unknown>)[t.key]
         this.walk(where, part, { in: `${v.key}.${t.key}` })
+        if (DECK_SUMMARIES[`${v.key}.${t.key}`] && part != null)
+          this.summaryParts.set(`${v.key}.${t.key}`, { def: v, part })
         if (this.opts.writes !== false) this.writeSurfaces(v, t.key, part)
       }
     }
@@ -1525,21 +1545,8 @@ export class Crawl {
     const a = ctx.access
     const lib = await import('@/lib/export/view')
     const XLSX = await import('xlsx')
-    const byView = new Map<ViewKey, { def: ViewDef; groups: FigureGroup[] }>()
-    for (const g of this.tables.values()) {
-      if (!g.view || !g.tab) continue
-      let v = byView.get(g.view.key)
-      if (!v) {
-        v = { def: g.view, groups: [] }
-        byView.set(g.view.key, v)
-      }
-      const tab = g.tab
-      v.groups.push({
-        key: tab,
-        label: g.view.tabs.find((t) => t.key === tab)?.label ?? tab,
-        figures: g.tables.map((t, i) => registered(`${tab}:${i}`, t, i)),
-      })
-    }
+    await this.loadDeckSummaries()
+    const byView = this.figureGroups()
     const long = a.can('action:export.long-csv') ? safe(() => longCsvOf(ctx), this, 'view files') : null
     const money = moneyOpts(ctx)
     const opts = {
@@ -1571,6 +1578,113 @@ export class Crawl {
         })
       }
     }
+  }
+
+  /**
+   * The summary slides of the tabs the crawl read (`DECK_SUMMARIES`), built as their screens build
+   * them (async: the screens' own modules load on demand). The decks call it; a test may too.
+   */
+  async loadDeckSummaries(): Promise<void> {
+    for (const [key, { def, part }] of this.summaryParts) {
+      if (this.deckSummaries.has(key)) continue
+      const make = DECK_SUMMARIES[key]
+      if (!make) continue
+      try {
+        const made = await make(this.ctx, def, part)
+        if (made) this.deckSummaries.set(key, made)
+      } catch (e) {
+        this.errors.push({ where: `deck summary ${key}`, message: (e as Error).message })
+      }
+    }
+  }
+
+  /**
+   * The figures the crawl read, as the whole-view export groups them: a group per tab, in the order
+   * read, each figure registered as the screen registers it, with the tab's summary slide on its
+   * figure (`DECK_SUMMARIES`, after `loadDeckSummaries`) standing in for the figures it names.
+   */
+  figureGroups(): Map<ViewKey, { def: ViewDef; groups: FigureGroup[] }> {
+    const byView = new Map<ViewKey, { def: ViewDef; groups: FigureGroup[] }>()
+    for (const [key, g] of this.tables) {
+      if (!g.view || !g.tab) continue
+      let v = byView.get(g.view.key)
+      if (!v) {
+        v = { def: g.view, groups: [] }
+        byView.set(g.view.key, v)
+      }
+      const tab = g.tab
+      v.groups.push({
+        key: tab,
+        label: g.view.tabs.find((t) => t.key === tab)?.label ?? tab,
+        figures: registeredGroup(tab, g, this.deckSummaries.get(key) ?? null),
+      })
+    }
+    return byView
+  }
+
+  /**
+   * A tab's own files' header and options exactly as its Export menu builds them (src/app/tabExport.ts
+   * `tabExportOptions`, the menu's `runTab`; review RP-1): the long CSV's control totals where the
+   * mode shows the long CSV and the tab is not heads only.
+   */
+  private tabFileOptions(view: ViewDef, tab: string) {
+    const ctx = this.ctx
+    const totals = tabTakesControlTotals(ctx, view, tab)
+      ? safe(
+          () => menuControlTotals(longCsvOf(ctx, longSourceOf(view))),
+          this,
+          `tab files ${view.key}.${tab}`,
+        )
+      : null
+    return tabExportOptions(ctx, view, tab, totals ?? undefined)
+  }
+
+  /**
+   * One tab's deck as its Export menu writes it ("Slides" for the tab: its figures with no dividers,
+   * src/app/ExportMenu.tsx `runTab`, header and options from `tabExportOptions`), read back slide by
+   * slide into the crawl under `deck <view>.<tab>/slide n`; returns the deck's outline
+   * (`deckOutline`) beside the slides read.
+   */
+  async tabDeck(key: string): Promise<{ outline: string[]; slides: DeckSlide[] }> {
+    const g = this.tables.get(key)
+    if (!g?.view || !g.tab) return { outline: [], slides: [] }
+    const lib = await import('@/lib/export/view')
+    await this.loadDeckSummaries()
+    const figures = registeredGroup(g.tab, g, this.deckSummaries.get(key) ?? null)
+    const { meta, opts: base } = this.tabFileOptions(g.view, g.tab)
+    const opts = { ...base, images: false, captured: new Map() }
+    const outline = lib.deckOutline(figures, meta)
+    if (!this.ctx.access.can('action:export.deck')) return { outline, slides: [] }
+    const slides = await deckSlides(() => lib.exportViewDeck(figures, meta, opts))
+    const tag: Tag = { in: `deck ${key}`, derived: true }
+    slides.forEach((slide, i) => {
+      const w = `deck ${key}/slide ${i + 1}`
+      this.value(w, slide.texts, tag)
+      slide.tables.forEach((rows, t) => {
+        rows.forEach((cells, r) => {
+          this.value(`${w}/table ${t + 1}/row ${r + 1}`, cells.join(' | '), tag)
+        })
+      })
+    })
+    return { outline, slides }
+  }
+
+  /**
+   * One tab's workbook as its Export menu writes it (`exportViewWorkbook`: a Summary sheet with the
+   * header and, where `tabTakesControlTotals`, the control totals, then a sheet per figure), read back
+   * sheet by sheet under `workbook <view>.<tab> (menu)/<sheet>`; returns the sheet names (review RP-1).
+   */
+  async tabWorkbook(key: string): Promise<string[]> {
+    const g = this.tables.get(key)
+    if (!g?.view || !g.tab || !this.ctx.access.can('action:export.view')) return []
+    const lib = await import('@/lib/export/view')
+    const XLSX = await import('xlsx')
+    await this.loadDeckSummaries()
+    const figures = registeredGroup(g.tab, g, this.deckSummaries.get(key) ?? null)
+    const { meta, opts } = this.tabFileOptions(g.view, g.tab)
+    const wb = await lib.buildViewWorkbook(figures, meta, { ...opts, images: false })
+    this.sheets(`workbook ${key} (menu)`, XLSX, await wb.xlsx.writeBuffer())
+    return wb.worksheets.map((w) => w.name)
   }
 
   /* ───── reading the result ───── */
@@ -1769,13 +1883,49 @@ const WHOLE_MODEL = new Set<ViewKey>(['home', 'team'])
 
 /**
  * Tabs with a model of their own instead of a part of their view's (`<view>.<tab>`): Plan > Hiring
- * reads `planHiringModel`, cached per context, which is no `PlanModel` field because it reads the
- * forecast's exits (docs/PLAN.md 9.7, reading H10 in docs/CONTRACTS-HIRING.md). The crawl reads it
- * under its tab, with its tiles, figures, findings, drills, cards and exports, as every other tab.
+ * reads `planHiringModel` and Plan > Recruiting summary `planRecruitingModel`, each cached per
+ * context, which are no `PlanModel` fields because they read the forecast (docs/PLAN.md 9.7 and 9.8,
+ * reading H10 in docs/CONTRACTS-HIRING.md). The crawl reads each under its tab, with its tiles,
+ * figures, findings, drills, cards and exports, as every other tab.
  * The map is the app's own (src/views/tabModels.ts), so the Shareable file's figures
  * (src/views/data/engine/snapshots.ts) read the same tabs the crawl reads.
  */
 export { TAB_MODELS }
+
+/** A tab's summary slide (docs/PLAN.md 9.8 item 5): the figure it rides on and the summary itself. */
+export interface TabDeckSummary {
+  figure: string
+  summary: DeckSummary
+}
+
+/**
+ * The summary slides tabs' screens register for their decks, by `<view>.<tab>`, built from the tab's
+ * model with the screen's own parts. Plan > Recruiting summary (src/views/plan/ui/Recruiting.tsx):
+ * the months chart carries the seven numbers (the tiles the mode shows, each through its tier gate,
+ * `summaryNumbersOf`) under "Recruiting summary" with the scope and as-of date, standing in for the
+ * figures `SUMMARY_REPLACES` names (the strip, the quarter table and where hiring happened), so the
+ * tab's deck is one slide after "About these numbers" (src/access/leaks.recruiting.slow.test.ts holds
+ * the screen's figure to these words).
+ */
+export const DECK_SUMMARIES: Readonly<
+  Record<string, (ctx: AnalyticsContext, view: ViewDef, model: unknown) => Promise<TabDeckSummary | null>>
+> = {
+  'plan.recruiting': async (ctx, view, model) => {
+    const m = model as PlanRecruiting
+    const ui = await import('@/views/plan/ui/Recruiting')
+    const tiles = kpisInMode(ctx.access, m.kpis)
+    const gates = tiles.map((k) => gateFor(ctx.quality, ctx.standard, k.uses, view.datasets))
+    return {
+      figure: PLAN_FIGURES.recruitingMonths,
+      summary: {
+        title: 'Recruiting summary',
+        subtitle: asOfLine(ctx.asOf, ctx.scopeLabel, m.fiscalYear),
+        numbers: ui.summaryNumbersOf(tiles, gates),
+        replaces: ui.SUMMARY_REPLACES,
+      },
+    }
+  },
+}
 
 /* ───────────── request texts ───────────── */
 
@@ -1905,6 +2055,27 @@ export function crawl(ctx: AnalyticsContext, opts: CrawlOptions = {}): Crawl {
   if (exportsOn(opts)) c.longExports()
   if (opts.imports?.length) c.imports(opts.imports)
   return c
+}
+
+/**
+ * A tab's figures as its screen registers them (ids `<tab>:<i>`, in the order read), with the tab's
+ * summary slide on the first figure it rides on and its `replaces` pointing at the figures read under
+ * the ids it names.
+ */
+function registeredGroup(
+  tab: string,
+  g: { tables: readonly ExportTable[]; ids: readonly string[] },
+  summary: TabDeckSummary | null,
+): RegisteredFigure[] {
+  const at = summary ? g.ids.indexOf(summary.figure) : -1
+  const replaces =
+    summary && at >= 0
+      ? g.ids.flatMap((id, j) => (j !== at && summary.summary.replaces.includes(id) ? [`${tab}:${j}`] : []))
+      : []
+  return g.tables.map((t, i) => {
+    const f = registered(`${tab}:${i}`, t, i)
+    return summary && i === at ? { ...f, deckSummary: { ...summary.summary, replaces } } : f
+  })
 }
 
 /** An export table as the figure registry hands it to the whole-view exports (no chart image). */

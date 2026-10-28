@@ -11,6 +11,7 @@
  */
 import { FREE_TEXT_HINT } from '@/access/copy'
 import { HIRING_KEYWORDS, HIRING_SECTION } from '../hiring'
+import { RECRUITING_KEYWORDS, RECRUITING_SECTION } from '../recruiting'
 import type { HelpArticle } from '../types'
 import {
   AMOUNTS,
@@ -198,17 +199,17 @@ export const VIEW_ARTICLES: readonly HelpArticle[] = [
     group: 'views',
     title: 'Plan',
     summary:
-      'The plan overview against the comparison, every position by month for the version shown, openings, hiring progress and transfers.',
+      'The plan overview against the comparison, every position by month for the version shown, openings, hiring progress, a recruiting summary and transfers.',
     without: [
       {
         surface: 'tab:plan.overview',
         summary:
-          'Your team’s positions by month, its openings, its hiring progress and its transfers, in heads.',
+          'Your team’s positions by month, its openings, its hiring progress, its recruiting summary and its transfers, in heads.',
       },
       {
         surface: 'tab:plan.transfers',
         summary:
-          'The plan overview against the comparison, every position by month for the version shown, openings and hiring progress.',
+          'The plan overview against the comparison, every position by month for the version shown, openings, hiring progress and a recruiting summary.',
       },
     ],
     keywords: [
@@ -224,6 +225,7 @@ export const VIEW_ARTICLES: readonly HelpArticle[] = [
       'actual heads',
       'standard heads',
       ...HIRING_KEYWORDS,
+      ...RECRUITING_KEYWORDS,
     ],
     keywordsWhere: [
       { surface: 'action:position.edit', words: ['edit seat', 'change a seat', 'working edit'] },
@@ -295,6 +297,8 @@ export const VIEW_ARTICLES: readonly HelpArticle[] = [
       { ul: ['No offer amounts or one-time hiring costs per req show.'], ...FINANCE },
       // Plan > Hiring (docs/PLAN.md 9.7, change C36): src/help/hiring.ts.
       ...HIRING_SECTION,
+      // Plan > Recruiting summary (docs/PLAN.md 9.8, change C38): src/help/recruiting.ts.
+      ...RECRUITING_SECTION,
       { h: 'Transfers', surface: 'tab:plan.transfers' },
       {
         p: 'Transfers in progress and done that touch your scope: the person, from and to, the effective date, the state and the approvals. No amounts.',

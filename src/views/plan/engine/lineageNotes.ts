@@ -374,3 +374,26 @@ export const HIRING_LINEAGE_NOTES: Readonly<Record<string, readonly LineageNote[
   // C37: the hires of the last 3 months, by the department and location of the seat hired into.
   'plan-hiring-recent': [START, KIND, TREE],
 }
+
+/**
+ * Plan > Recruiting summary's notes (docs/PLAN.md 9.8, change C38; `recruitingLineage.slow.test.ts`
+ * probes the tab's seven tiles and three figures in HR admin, HRBP and Manager mode). Its numbers are
+ * Plan > Hiring's (`HIRING_LINEAGE_NOTES`) read from the same engine, plus the forecast's projected
+ * starts, so a field reads still here for the same reasons it does there.
+ */
+export const RECRUITING_LINEAGE_NOTES: Readonly<Record<string, readonly LineageNote[]>> = {
+  // The seven tiles: Plan > Hiring's approved heads, current heads, open to hire and future starts,
+  // the forecast's projected starts, projected attrition (expected exits) and the 3-month hire pace.
+  'recruiting-approved': [START, KIND, ELIMINATED_END, PLANNED_START_IN_YEAR, SEATS_NOT_HOLDERS],
+  'recruiting-current': [START, END],
+  'recruiting-open': [START, END, KIND, ELIMINATED_END, PLANNED_START_IN_YEAR],
+  'recruiting-future': [KIND, ELIMINATED_END, PLANNED_START_IN_YEAR, TREE],
+  'recruiting-projected': [START, END, KIND, ELIMINATED_END, REQ_AS_OF, OPENED, FREEZES_WHOLE],
+  'recruiting-attrition': [START, END, KIND, ELIMINATED_END, REQ_AS_OF, OPENED, FREEZES_WHOLE],
+  'recruiting-velocity': [START, KIND, TREE],
+  // Heads and hiring by month, and by quarter ahead: the closed months' flows and the forecast's months.
+  'plan-recruiting-months': [START, END, KIND, ELIMINATED_END, REQ_AS_OF, OPENED, FREEZES_WHOLE],
+  'plan-recruiting-quarters': [START, END, KIND, ELIMINATED_END, REQ_AS_OF, OPENED, FREEZES_WHOLE],
+  // Where hiring happened: Plan > Hiring's hires of the last 3 months, by the seat's location and department.
+  'plan-recruiting-where': [START, KIND, TREE],
+}

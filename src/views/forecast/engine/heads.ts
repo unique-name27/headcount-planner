@@ -11,11 +11,14 @@
  *  - Closed months' starts are the hires into the scope's seats that month and their known exits
  *    the leavers whose last day falls in it; open months' starts are the expected starts
  *    (probability-weighted, accepted offers 1) and their known exits the scope's employees whose
- *    known last day falls in the month.
+ *    known last day falls in the month. An opening the run dates in a closed month (an overdue
+ *    Open seat starts on the as-of date) is the first open month's, as the run counts its heads
+ *    (change C38); an offer start dated in a closed month is that month's HRIS hire, counted once
+ *    as a hire (finish audit AG-1).
  *  - A last day is read from the assignments clipped at an approved Elimination's last day (R34), as
  *    the run reads them (`exitDaysOf`, review HN-2).
  */
-import { monthKey } from '@/data/fiscal'
+import { monthKey, shiftMonth } from '@/data/fiscal'
 import type { ISODate, Month, PositionRow } from '@/data/schema'
 import { clipAtElimination } from '@/plan/engine/versions'
 import type { Assignment, PlanLine } from '@/plan/types'
@@ -170,12 +173,21 @@ export function forecastFlows(p: FPrep): ReadonlyMap<Month, MonthFlows> {
     f.starts += 1
     add(f.startSeats as Map<string, number>, w.positionId, 1)
   }
+  // An opening dated in a closed month (an Open seat past its time to fill starts on the as-of
+  // date, a month-end in a closed month) counts in the first open month, where the run counts its
+  // heads from (forecast.ts `indexOf`), so the open months' starts and heads reconcile. An offer
+  // start dated in a closed month does not: with the as-of date before the last close it is that
+  // month's HRIS hire, which the loop above counts, and the run's starts row counts an offer only
+  // from its first projected month (forecast.ts `startsByIndex`; finish audit AG-1).
+  const firstOpen = shiftMonth(run.actualThrough, 1)
   for (const [id, starts] of run.starts) {
     if (!ids.has(id)) continue
     for (const s of starts) {
-      const m = monthKey(s.start)
+      const dated = monthKey(s.start)
+      if (actual(dated) && s.kind === 'offer') continue
+      const m = actual(dated) ? firstOpen : dated
       const f = out.get(m)
-      if (!f || actual(m)) continue
+      if (!f) continue
       f.starts += s.probability
       add(f.startSeats as Map<string, number>, id, s.probability)
     }

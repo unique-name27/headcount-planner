@@ -4,7 +4,7 @@
  * line or swatch in the series color. Content is set with textContent only, because category
  * and series names come from uploaded files.
  */
-import type { LegendShape } from './legend'
+import { type LegendShape, lineBackground } from './legend'
 
 export interface TipRow {
   value: string
@@ -12,6 +12,8 @@ export interface TipRow {
   /** Resolved series color for the key; omit for unkeyed rows. */
   color?: string
   shape?: LegendShape
+  /** A full-strength outline around the key (a light fill drawn with an outline, `LegendSwatch.stroke`). */
+  stroke?: string
   /** Emphasize this row (e.g. the hovered series among several). */
   strong?: boolean
 }
@@ -65,16 +67,24 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return e
 }
 
-function keyEl(color: string, shape: LegendShape = 'line'): HTMLElement {
+function keyEl(color: string, shape: LegendShape = 'line', stroke?: string): HTMLElement {
   const k = el('span', 'inline-block shrink-0')
   k.setAttribute('aria-hidden', 'true')
   k.style.background = color
+  const line = lineBackground(shape, color)
   if (shape === 'line') Object.assign(k.style, { width: '12px', height: '2px', borderRadius: '1px' })
+  else if (line) Object.assign(k.style, { width: '12px', height: '2px', background: line })
   else if (shape === 'dot' || shape === 'medal')
     Object.assign(k.style, { width: '8px', height: '8px', borderRadius: '50%' })
   else if (shape === 'diamond')
     Object.assign(k.style, { width: '7px', height: '7px', margin: '0 1px', transform: 'rotate(45deg)' })
-  else Object.assign(k.style, { width: '9px', height: '9px', borderRadius: '2px' })
+  else
+    Object.assign(k.style, {
+      width: '9px',
+      height: '9px',
+      borderRadius: '2px',
+      ...(stroke ? { boxShadow: `inset 0 0 0 1.5px ${stroke}` } : {}),
+    })
   return k
 }
 
@@ -88,7 +98,7 @@ export function renderTip(host: HTMLElement, content: TipContent): void {
     for (const r of content.rows) {
       if (keyed) {
         const cell = el('span', 'flex items-center')
-        if (r.color) cell.append(keyEl(r.color, r.shape))
+        if (r.color) cell.append(keyEl(r.color, r.shape, r.stroke))
         grid.append(cell)
       }
       grid.append(

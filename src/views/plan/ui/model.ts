@@ -7,6 +7,7 @@ import { useMemo } from 'react'
 import { useAnalytics } from '@/data/context'
 import { type PlanModel, planModel } from '../engine'
 import { type PlanHiring, planHiringModel } from '../engine/hiringTab'
+import { type PlanRecruiting, planRecruitingModel } from '../engine/recruitingTab'
 
 export function usePlan(): PlanModel {
   const ctx = useAnalytics()
@@ -17,4 +18,10 @@ export function usePlan(): PlanModel {
 export function usePlanHiring(): PlanHiring {
   const ctx = useAnalytics()
   return useMemo(() => planHiringModel(ctx), [ctx])
+}
+
+/** Plan > Recruiting summary's model (cached per context, docs/PLAN.md 9.8). */
+export function usePlanRecruiting(): PlanRecruiting {
+  const ctx = useAnalytics()
+  return useMemo(() => planRecruitingModel(ctx), [ctx])
 }

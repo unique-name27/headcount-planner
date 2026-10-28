@@ -139,6 +139,14 @@ const HIRING_FORECAST = uses(
 /** Expected exits: known last days ahead in seats in scope, and the forecast's modeled exits. */
 const HIRING_EXITS = uses(LEAVERS, HIRING_FORECAST)
 
+/**
+ * Plan > Recruiting summary's projected starts (docs/PLAN.md 9.8, change C38): the same forecast's
+ * starts on Open and Planned seats with no signed offer, each at its fill rate after its time to
+ * fill, which the forecast keys by the seat's level (forecast.ts `timeToFill[level]`), and its
+ * modeled backfills. Signed offers are future starts (`HIRING_ACCEPTED`), never these.
+ */
+const RECRUITING_STARTS = uses(HIRING_FORECAST, ['positions.level'])
+
 export const FIGURE = {
   /** Approved heads (R1): Filled, Open and Planned Employee seats with a start by the fiscal year's end. */
   approved: LINE_STATUS,
@@ -235,6 +243,18 @@ export const FIGURE = {
   hiringAttrition: uses(LEAVERS, PEOPLE),
   /** Months to close: open to hire against the net hiring pace. */
   hiringMonthsToClose: uses(HIRING_OPEN, HIRING_FLOWS),
+  /*
+   * Plan > Recruiting summary (docs/PLAN.md 9.8, change C38): Plan > Hiring's numbers, plus the
+   * forecast's starts on Open and Planned seats. Heads only.
+   */
+  /** Projected starts: the forecast's starts on Open and Planned seats at their fill rate, and its modeled backfills. */
+  recruitingProjected: RECRUITING_STARTS,
+  /** Projected heads: current heads, future starts and moves in, projected starts, less projected attrition. */
+  recruitingHeads: uses(HIRING_OPEN, HIRING_ACCEPTED, RECRUITING_STARTS, HIRING_EXITS),
+  /** Heads and hiring by month: the closed months' hires, exits and heads, then the months ahead. */
+  recruitingMonths: uses(HIRING_FLOWS, HIRING_ACCEPTED, RECRUITING_STARTS, HIRING_EXITS, PEOPLE),
+  /** By quarter ahead: approved heads by each quarter end against projected heads then. */
+  recruitingQuarters: uses(HIRING_OPEN, HIRING_ACCEPTED, RECRUITING_STARTS, HIRING_EXITS),
 } as const satisfies Record<string, readonly FieldRef[]>
 
 /** The fields the filters read: a unit filter reads the positions' unit, a leader filter the tree. */

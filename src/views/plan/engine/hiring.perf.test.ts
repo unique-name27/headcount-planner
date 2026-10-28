@@ -10,6 +10,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { bestCostMs } from '@/lib/testBudget'
 import { sample, sampleCtx } from './fixtures'
 import { planHiringModel } from './hiringTab'
+import { planRecruitingModel } from './recruitingTab'
 
 const BUDGET_MS = 300
 
@@ -22,6 +23,19 @@ describe('the Plan > Hiring model', () => {
   for (const mode of ['finance', 'hrbp', 'manager', 'hr-admin'] as const)
     it(`computes in ${mode} mode in under ${BUDGET_MS} ms for a fresh context`, () => {
       const ms = bestCostMs(() => planHiringModel(sampleCtx(mode)))
+      expect(ms).toBeLessThan(BUDGET_MS)
+    })
+})
+
+/*
+ * Plan > Recruiting summary (docs/PLAN.md 9.8, change C38; review RS-6): built on Plan > Hiring's
+ * reading of the context, so a fresh context's recruiting model builds Plan > Hiring's too. One
+ * budget covers both tabs together, in every mode.
+ */
+describe('the Plan > Recruiting summary model', () => {
+  for (const mode of ['finance', 'hrbp', 'leader', 'manager', 'hr-admin'] as const)
+    it(`computes in ${mode} mode in under ${BUDGET_MS} ms for a fresh context, Plan > Hiring's model included`, () => {
+      const ms = bestCostMs(() => planRecruitingModel(sampleCtx(mode)))
       expect(ms).toBeLessThan(BUDGET_MS)
     })
 })

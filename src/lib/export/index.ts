@@ -142,6 +142,7 @@ export {
   captureFigureImages,
   controlTotalFacts,
   DECK_KICKER,
+  deckEntries,
   deckOutline,
   entrySheetName,
   exportViewDeck,

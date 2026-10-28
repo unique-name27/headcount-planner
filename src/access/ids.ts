@@ -50,6 +50,15 @@ export interface TabDef {
   label: string
 }
 
+/**
+ * The tabs that are heads only in every mode (Plan > Hiring 9.7, Plan > Recruiting summary 9.8): their
+ * own files carry no long CSV control totals, which are cost (src/app/tabExport.ts, review RP-1).
+ */
+export const HEADS_ONLY_TABS: readonly { view: ViewKey; tab: string }[] = [
+  { view: 'plan', tab: 'hiring' },
+  { view: 'plan', tab: 'recruiting' },
+]
+
 /** Every view's tabs in tab order, the first the default (docs/PLAN.md 9.1). */
 export const VIEW_TABS: Readonly<Record<ViewKey, readonly TabDef[]>> = {
   home: [{ key: 'overview', label: 'Overview' }],
@@ -60,6 +69,8 @@ export const VIEW_TABS: Readonly<Record<ViewKey, readonly TabDef[]>> = {
     { key: 'openings', label: 'Openings' },
     // Hiring progress (docs/PLAN.md 9.7, change C36): heads only, shown in every mode.
     { key: 'hiring', label: 'Hiring' },
+    // Recruiting summary (docs/PLAN.md 9.8, change C38): one screen to show, heads only, every mode.
+    { key: 'recruiting', label: 'Recruiting summary' },
     { key: 'transfers', label: 'Transfers' },
   ],
   requests: [
@@ -612,6 +623,44 @@ export const HIRING_SURFACES: readonly SurfaceId[] = [
   ...HIRING_COLUMNS.map((c) => S.column(c.slice(0, c.indexOf('.')), c.slice(c.indexOf('.') + 1))),
 ]
 
+/* ───────────── Plan > Recruiting summary (docs/PLAN.md 9.8, change C38) ───────────── */
+
+/** Where Plan > Recruiting summary sits: its figures and tiles take this tab's decision. */
+export const RECRUITING_AT = { view: 'plan', tab: 'recruiting' } as const
+
+/**
+ * Plan > Recruiting summary's figure ids, in page order (src/views/plan/engine/figures.ts holds them
+ * as `PLAN_FIGURES.recruiting*`): the seven numbers, heads and hiring by month, by quarter ahead and
+ * where hiring happened.
+ */
+export const RECRUITING_FIGURE_IDS = [
+  'plan-recruiting-kpis',
+  'plan-recruiting-months',
+  'plan-recruiting-quarters',
+  'plan-recruiting-where',
+] as const
+
+/** Its seven tiles (`kpi:<id>`), in strip order (src/views/plan/engine/recruitingTab.ts `RECRUITING_KPIS`). */
+export const RECRUITING_KPI_IDS = [
+  'recruiting-approved',
+  'recruiting-current',
+  'recruiting-open',
+  'recruiting-future',
+  'recruiting-projected',
+  'recruiting-attrition',
+  'recruiting-velocity',
+] as const
+
+/**
+ * Every surface Plan > Recruiting summary adds, for `policy.test.ts`'s explicit-decision check. Its
+ * drills are Plan > Hiring's (`HIRING_DRILL_KINDS`, `HIRING_COLUMNS`), already named there.
+ */
+export const RECRUITING_SURFACES: readonly SurfaceId[] = [
+  S.tab(RECRUITING_AT.view, RECRUITING_AT.tab),
+  ...RECRUITING_FIGURE_IDS.map((id) => S.figure(id)),
+  ...RECRUITING_KPI_IDS.map((id) => S.kpi(id)),
+]
+
 /* ───────────── everything named ───────────── */
 
 /**
@@ -645,6 +694,7 @@ export const NAMED_SURFACES: readonly SurfaceId[] = [
     ...ACTION_SURFACES,
     ...HELP_SURFACES,
     ...HIRING_SURFACES,
+    ...RECRUITING_SURFACES,
   ]),
 ]
 
@@ -672,6 +722,8 @@ export const PLAN_GRID: Readonly<Record<string, GridLetters>> = {
   'tab:plan.openings': 'LSSLS',
   // Change C36 (9.7): heads only, so every mode shows it, each over its own scope.
   'tab:plan.hiring': 'SSSSS',
+  // Change C38 (9.8): heads only, like Plan > Hiring, in every mode over its own scope.
+  'tab:plan.recruiting': 'SSSSS',
   'tab:plan.transfers': 'LSSHS',
   'view:requests': 'LLLLS',
   'tab:requests.queue': 'HLLLS',

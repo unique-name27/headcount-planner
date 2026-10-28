@@ -32,6 +32,7 @@ export const HELP_NAMES: readonly HelpName[] = [
   { phrase: 'Plan > Positions', surface: 'tab:plan.positions' },
   { phrase: 'Plan > Openings', surface: 'tab:plan.openings' },
   { phrase: 'Plan > Hiring', surface: 'tab:plan.hiring' },
+  { phrase: 'Plan > Recruiting summary', surface: 'tab:plan.recruiting' },
   { phrase: 'Plan > Transfers', surface: 'tab:plan.transfers' },
   { phrase: 'Requests > Queue', surface: 'tab:requests.queue' },
   { phrase: 'Requests > New', surface: 'tab:requests.new' },

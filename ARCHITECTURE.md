@@ -365,6 +365,18 @@ the engine's input holds signed offers (`offers`, S(q)'s future starts) and move
 start can reach the tab; the hires of the last 3 closed months by department and location
 (`plan-hiring-recent`) are built in `hiringModel.ts` from the same hires as the velocity chart.
 
+Plan > Recruiting summary (PLAN 9.8, change C38; docs/CONTRACTS-HIRING.md section 6) is a second model
+on Plan > Hiring's reading: `views/plan/engine/recruitingTab.ts` `planRecruitingModel(ctx)` (cached per
+context, under `plan.recruiting` in `TAB_MODELS`) builds it in `recruitingModel.ts` from `hiringBuiltOf`
+(shared by both tabs) and Plan > Hiring's own cards, with projected starts from the same forecast run
+(`hiringData.ts` `projectedStartsOf`) and three rare terms of projected heads (a last day on the as-of
+date, a signed offer past its start date, a pre-hire, `HiringPrep.preHires`) that never reach Plan >
+Hiring's engine; the chart is `ui/RecruitingMonthsChart.tsx`, its month labels `ui/monthTicks.ts`
+(shared with Plan > Hiring's velocity chart). Its deck is one summary slide (`RegisteredFigure.deckSummary`,
+`lib/export/view.ts` `deckEntries`), and a tab's own files are written by `app/tabExport.ts`
+`tabExportOptions` (the Export menu and the leak crawl alike), which leaves the long CSV's control totals
+off the heads-only tabs (`HEADS_ONLY_TABS`).
+
 Forecast accuracy (`forecast.accuracy.heads` and `forecast.accuracy.cost`, R14, M4 review SA-1) has
 one engine, `views/finance/engine/accuracy.ts` `forecastAccuracyOf`: the fiscal year's latest locked
 reforecast against the months closed since its `closedThrough`, 1 − |forecast − actual| ÷ actual

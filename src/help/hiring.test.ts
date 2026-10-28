@@ -274,8 +274,10 @@ describe('What’s new (the hiring note)', () => {
   const c37 = RELEASE_NOTES.find((n) => n.title === 'Future starts and recent hires')
 
   it('follows the C37 note, and every mode reads the tab’s items', () => {
-    expect(RELEASE_NOTES[0]).toBe(c37)
-    expect(RELEASE_NOTES[1]).toBe(note)
+    // C38's Recruiting summary note (src/help/recruiting.test.ts) is the newest, then C37's, then C36's.
+    expect(RELEASE_NOTES[0].title).toBe('Recruiting summary')
+    expect(RELEASE_NOTES[1]).toBe(c37)
+    expect(RELEASE_NOTES[2]).toBe(note)
     for (const { name, access } of EVERY) {
       const items =
         releaseNotesIn(access).find((n) => n.title === 'Future starts and recent hires')?.items ?? []

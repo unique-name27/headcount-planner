@@ -767,6 +767,14 @@ band-cohort exits and the band part only; the filled part is identical to the ce
 **Fixture F3 (`openedOn`)**: a seat moved from Planned to Open by Start recruiting on 21 Aug 2026, 40 days
 before as-of 30 Sep 2026, with time to fill 60 days and target start 1 Oct 2026: `openedOn` = 21 Aug,
 start = max(1 Oct, 30 Sep + max(0, 60 − 40)) = **20 Oct 2026** (as-of + 20).
+**Expected starts by month** (the Forecast view's flows, `views/forecast/engine/heads.ts` `forecastFlows`;
+review RS-3, 27 Oct 2026): an expected start the run dates in a closed month (an Open seat past its time to
+fill starts on the as-of date, which falls in a closed month on a month-end as-of date) counts in the first
+open month, where the run counts its heads from, so the year-end card's "Timing within months" step is
+about 0 and the expected starts add up to the heads (R147). An offer start the run dates in a closed month
+does not move: with the as-of date before the last close it is the HRIS hire the run read as a pre-hire,
+which the closed month already counts, and the run's own starts row counts an offer only from its first
+projected month (finish audit AG-1, 28 Oct 2026).
 
 ### 6.8 Variance and bridge (`variance.ts`, `bridge.ts`)
 
@@ -1336,6 +1344,7 @@ data; `matrix.test.ts` snapshots the full text to `src/access/__snapshots__/acce
 | `tab:plan.openings` | L | S | S | L | S | Mgr: "Your team; an accepted offer shows as a date only." Fin: "No offer amounts or one-time hiring costs per req." |
 | `tab:plan.transfers` | L | S | S | H | S | Mgr: "Your team; names show, amounts do not." Fin: "Transfers move named people. Finance sees their effect in the bridge and in Targets." |
 | `tab:plan.hiring` | S | S | S | S | S | Mgr: "Your team, in heads." Heads only: no amount, band estimate or offer amount in any mode (9.7, C36). |
+| `tab:plan.recruiting` | S | S | S | S | S | Mgr: "Your team, in heads." Heads only in every mode, its own files included (9.8, C38, R145). |
 | `view:requests` | L | L | L | L | S | as the tabs |
 | `tab:requests.queue` | H | L | L | L | S | Mgr: "The queue spans other teams. Mine and Approvals hold yours." HRBP/Lead: "Your unit or org." Fin: "Eliminations and filled-seat changes show position ID, title, level and org only." |
 | `tab:requests.new` | L | S | L | H | S | Mgr/Lead: "Inside your team or org." Fin: "Finance sets targets and gives final approval. It does not raise requests." |
@@ -1519,7 +1528,7 @@ export function managerText(text: string, viewer: Viewer): string   // Manager m
 |---|---|---|---|---|
 | `home` | Home | overview | all | per mode: heads vs plan (HRBP), year-end gap (Leader), full-year cost vs Budget (Finance) |
 | `team` | My team | overview | positions, workers, reqs, requests, assumptions | left to fill (heads) |
-| `plan` | Plan | overview, positions, openings, hiring, transfers | positions, workers, comp, reqs, assumptions, freezes | approved heads |
+| `plan` | Plan | overview, positions, openings, hiring, recruiting, transfers | positions, workers, comp, reqs, assumptions, freezes | approved heads |
 | `requests` | Requests | queue, new, mine, approvals, cycle | requests, positions, targets, freezes, assumptions | requests waiting 5+ days |
 | `forecast` | Forecast | overview, variance, bridge | positions, workers, comp, reqs, assumptions, freezes | year-end heads forecast |
 | `targets` | Targets | gap, suborgs (Sub-org targets), tree (Tree × cost center) | targets, positions, requests, assumptions | gap in heads |
@@ -1817,8 +1826,12 @@ Heads only, so no cost guard. Rules that still apply: 8.4 (nothing about a Manag
 Manager C's elimination stays out of every Manager count, since it is a request on C's own seat and the
 approved Elimination ends a seat outside C's tree), leave (exits are terminations, never leave; on-leave
 people stay in current heads and are never split out), offers (dates only; no offer amount, sign-on or
-agency fee), and requests hidden by 8.4 rule 3 never change a count a viewer sees. The leak crawl walks
-the tab, its cards, drills and exports in every mode with the Manager A, B, C personas.
+agency fee), and requests hidden by 8.4 rule 3 never change a count a viewer sees where their rows sit
+outside the viewer's scope (Manager mode's tree, R23). A mode whose scope holds the touched seat (Finance
+acting as C, the CFO leader) reads the approved state as its other tabs do, and seats a hidden request
+creates inside the viewer's own tree (a Trade's get seats) are the team's seats (CONTRACTS-HIRING I1,
+R146). The leak crawl walks the tab, its cards, drills and exports in every mode with the Manager A, B, C
+personas.
 
 #### Metrics (section 12 rows)
 
@@ -1866,8 +1879,8 @@ steps per mode, so C37's table of recent hires gets no step of its own; the Hiri
 
 ### 9.8 Recruiting summary (Plan > Recruiting summary, change C38)
 
-**Status: designed 26 Oct 2026, not built yet.** The tab, its policy row (`tab:plan.recruiting`, S in every
-mode) and its place in 9.1's Plan tabs (after hiring) are added when it is built.
+**Status: built 27 Oct 2026.**
+Code: `src/views/plan/engine/recruitingTab.ts` and `recruitingModel.ts`, `src/views/plan/ui/Recruiting.tsx` and `RecruitingMonthsChart.tsx`; contracts in docs/CONTRACTS-HIRING.md section 6, readings R133 to R148, which override 9.8 where they differ (as R132 does for 9.7).
 
 User request, 26 Oct 2026: "one simple view i can show the head of recruiting that shows current approved,
 future starts, projected starts, projected attrition and hiring velocity".
@@ -1891,11 +1904,12 @@ a one-slide export. It reuses 9.7's engine; no number here is computed different
      hires under it.
 2. **One chart, "Heads and hiring by month"** (figure `plan-recruiting-months`): for the last 12 closed
    months, actual hires (up) and exits (down) as bars and actual heads as a line; for the months ahead to
-   FY end, future starts and projected starts stacked up (projected in a lighter style), projected exits
-   down, and projected heads (current heads + future starts + projected starts − projected exits) as a
-   dashed line; approved heads as a flat reference line.
+   FY end, future starts, moves in and projected starts stacked up (projected in a lighter style),
+   projected attrition down, and projected heads (current heads + future starts + moves in + projected
+   starts − projected attrition, with R134's rare terms) as a dashed line; approved heads as a flat
+   reference line (R136, R137, R143).
 3. **One small table, "By quarter ahead"** (figure `plan-recruiting-quarters`): per quarter ahead, approved
-   heads by the quarter end, future starts, projected starts, projected exits, projected heads at the
+   heads by the quarter end, future starts, projected starts, projected attrition, projected heads at the
    quarter end and the gap to approved heads (projected heads − approved, "short by n" or "over by n").
 4. **Where hiring happened** (figure `plan-recruiting-where`): the top 5 locations and top 5 departments by
    hires over the last 3 closed months (from 9.7's C37 figure), with "and n more" and a link to Plan >
@@ -1907,6 +1921,15 @@ Words: "Future starts" (signed offers) and "Projected starts" (the model) are al
 way; "Projected attrition" for expected exits on this tab. Privacy as 9.7 (heads only; 8.4; Manager mode
 uses the tree's own cohort for modeled exits and starts). Help: view-plan gains a Recruiting summary
 section; the view-plan tour may point at the tab.
+
+#### Metrics (section 12 rows)
+
+The tab reads Plan > Hiring's ids (plan.hiring.approvedByQuarter, plan.hiring.currentHeads,
+plan.hiring.open, plan.hiring.acceptedStarts, plan.hiring.expectedExits, plan.hiring.movesIn,
+plan.hiring.pace, plan.hiring.attritionRate, plan.hiring.recentHires) and adds three of its own:
+plan.recruiting.projectedStarts, plan.recruiting.projectedHeads and plan.recruiting.gapToApproved, units
+num1, registered after plan.hiring.recentHires (`RECRUITING_METRIC_IDS`), so the catalog has 112 data
+metrics.
 
 ---
 
@@ -2909,6 +2932,22 @@ and `lib/export/` together because each imports the other's types. M4 adds the f
 | R130 | Free text from the datasets in Manager mode (review EX-3, attack EX-3-a, EX-3-b) | Position titles, job families and req recruiters read through `managerText` where the context is built, so every model, card, export, Shareable and Export for a manager gets the guarded text; the lists in force still read the rows as imported. Open a shared file reads a kept figure's texts (title, subtitle, note, text cells) through `managerText` for the viewer. |
 | R131 | Plain counts (review CP-5, CP-11) | A count takes the singular at 1 ("1 head", "1 seat"); a status sum names counts only ("7 Filled + 1 Open + 1 Planned."); a negative pending effect subtracts ("200 Working seats − 1 head from pending requests."); a gap of 0 reads "On target". `countTemplates` (src/testkit/counts.ts) scans the source for a count written before a plural noun with no singular branch. |
 | R132 | Hiring progress readings (9.7, C36) | The readings taken while building and reviewing Plan > Hiring (H, T, W, K and I rows, and V1 to V19) are recorded in docs/CONTRACTS-HIRING.md sections 5 and 5.2 and override 9.7 where they differ. Among them: a later year's first quarter counts new to hire against open to hire on the day before it starts; Manager mode nets its tree's modeled exits over the tree alone (review HP-1); each stint of a rehire is its own hire and exit; a quarter that is over but not closed reads "(ended)"; the paces need 3 closed months. |
+| R133 | Projected starts (9.8, C38) | The Working forecast's starts on Open and Planned seats with no signed offer, each at its fill rate, plus its modeled backfills, over the months E reads (month-ends after the as-of date). An opening the run dates in a closed month, or in a month that ended on or before the as-of date (a month-end as-of date before its close, review RN-1), counts in the first month ahead; a seat an approved internal move takes has none (`hiringData.ts` `projectedStartsOf`, `withoutTaken`). |
+| R134 | Projected heads (9.8, C38; reviews RN-2 to RN-4) | Current heads − people whose last day is the as-of date + future starts + signed offers past their start date that the HRIS has not recorded + pre-hires the HRIS holds on a seat with no signed offer + moves in + projected starts − projected attrition. The three rare terms show only when not 0, each its own card input and month column, never a future start; Plan > Hiring's S, M, O and E are unchanged. A pre-hire's seat still counts in open to hire, as a lagging offer's does under H24, so A = H + O + S + M holds with that seat in O (finish audit AF-3). Projected heads equal the run's heads at every month end from an as-of date on or after the last close; with the as-of date before it (31 Aug 2026, September closed) each month ahead is the run's flows month by month, while the run's own heads sit below its flows from October (4 heads for Silicon Engineering by December, an open item of the forecast's, CONTRACTS-HIRING section 8; finish audit AF-2). |
+| R135 | No Working forecast (9.8) | Projected starts, projected heads and the gap have no value ("—"); projected attrition is Plan > Hiring's E, known exits only, and its note and formula say so (review RU-6). |
+| R136 | Months on the recruiting chart (9.8 item 2) | The last 12 closed months, then the months ended since the last close ("Ended, not closed", read from the HRIS as V8 reads a quarter over but not closed, review RN-1), then the months ahead from the first month-end after the as-of date. The month holding a mid-month as-of date carries its actual hires and exits to date (review RU-5). Each month ahead is the projection's difference, so the months add up to the quarter table and the tiles. |
+| R137 | Approved heads on the recruiting chart | A at the fiscal year end on every month, a dotted line keyed "Approved heads by 31 Mar 2027"; a closed month's tooltip leaves it out (review RU-3). |
+| R138 | By quarter ahead (9.8 item 3) | The quarters Plan > Hiring reads as ahead that end after the as-of date; a gap that rounds to 0.0 reads "On approved heads" (review RU-15); the note names current heads and the one-decimal rounding (review RN-8); a later year's rows read "Q1 FY28, Apr to Jun" (review RU-10). |
+| R139 | A year that is over (9.8, H23) | No quarter or month ahead; projected starts and projected attrition read 0 with a card that says so, approved heads "—" with one too; the chart's subtitle names the closed months only, and the quarter table drops its span and note (review RU-7). |
+| R140 | The recruiting tiles (9.8 item 1) | Every tile opens a calculation card, approved heads and current heads included (review RS-1). The approved heads, projected starts and projected attrition cards are titled by the fiscal year end's day ("Projected starts by 31 Mar 2027", review RN-5; future starts' card is "Future starts" and open to hire's "Open to hire, FY27", finish audit AD-8); a later year's flow tiles read "to FY28 end" (review RU-10); the attrition note is Plan > Hiring's "Attrition (heads) 6.6% over 12 closed months" (review RN-6); the velocity note is "6-month pace 4.5; 13 hires in 3 months" (review RU-9); a phone shows all seven tiles. |
+| R141 | One name for expected exits on the recruiting tab | "Projected attrition" on the tile, the quarter and month columns, the legend, the cards and the help, never "projected exits" (reviews RU-12, RS-5). |
+| R142 | Where hiring happened (9.8 item 4) | Plan > Hiring's C37 sub-totals ranked by hires, a tie in that table's order ("No location" last); places beyond the top 5 count as "and n more", naming a tie at the cut: "and 4 more locations, 1 tied with the fifth at 3 hires" (review RN-7). |
+| R143 | The recruiting chart's marks | Moves in are their own segment, key and keyboard stop (review RS-2); projected starts a light fill with a full-strength dashed outline, 3:1 on the sheet and the slide (review RU-1); both axes titled (review RU-2); the bars' domain at least one head each way (review RU-8); month labels thinned as the Columns kit, shared with Plan > Hiring's velocity chart (review RU-11); approved heads dotted, projected heads dashed, keyed apart (review RU-14). The rare terms of R134 are drawn in the month they ride on, each with its own tint, key and keyboard stop only when not 0 (signed offers past their start date and pre-hires up after the future starts, last days on the as-of date down after the exits), so every month ahead's bars net to the dashed line's step; a last day on a mid-month as-of date is one of that month's exits to date, not a last days segment too (finish audit AF-1). |
+| R144 | The recruiting deck (9.8 item 5) | One "Recruiting summary" slide after About these numbers, standing in for the strip, the quarter table and where hiring happened, its numbers as the strip shows them under the data standard's gates; a whole-view deck gives the tab that one slide and no divider of the same title, and the toast counts slides (review RU-17); the fallback table fits the slide (review RU-16). The workbook keeps every figure. |
+| R145 | Heads-only tabs' own files (review RP-1) | Plan > Hiring's and Plan > Recruiting summary's own deck and workbook carry no long CSV control totals (`HEADS_ONLY_TABS`, `src/app/tabExport.ts`); their header facts and, with Show pay amounts on, the "Contains individual pay" line stay (R105). The whole-view files keep the control totals. |
+| R146 | 8.4 rule 3 inside the scope (reviews RP-2, RP-3) | As CONTRACTS-HIRING I1: a hidden request's rows outside the scope move no count; inside the scope (Finance acting as C, the CFO leader) the tab reads the approved state as the other tabs do, and a hidden Trade's get seats in the viewer's own tree are the team's seats, as Plan > Overview and Positions read them. |
+| R147 | The Forecast view's expected starts by month (review RS-3) | An expected start the run dates in a closed month counts in the first open month, where the run counts its heads from (6.7); Forecast > Overview's expected starts and October starts include those openings (8.5 for Silicon Engineering, 13.9 for the company on the sample). An offer start dated in a closed month is not moved: with the as-of date before the last close it is that month's HRIS hire, counted once, and each open month's starts are the run's own starts row (finish audit AG-1). |
+| R148 | Recruiting summary's help and lineage (9.8 Help) | The view-plan tour gains no step (it is at 6); the glossary gains Projected starts, Projected heads and Gap to approved heads, and "projected attrition" finds Expected exits by quarter end; projected starts' lineage reads `positions.level` (time to fill by level); the access matrix gained 15 rows and no existing line changed. |
 
 ### 15.2 Changes to the spec (each with the reason)
 
@@ -2951,7 +2990,7 @@ and `lib/export/` together because each imports the other's types. M4 adds the f
 | C35 | Full files encode each locked version's line table by column (one array per field, the amount columns as integer cents, heads, FTE, active share and rates exact); the earlier all-exact and row forms still read. The import limit is 25 MB for Shareable and Requests files ("This file is larger than 25 MB, the most a Shareable or Requests file can be. Nothing was imported.") and 150 MB for Full files ("This file is larger than 150 MB, the most a Full file can be. Nothing was imported."). Replace from a Full file whose audit chain verifies, its own audit head included, replaces this workspace's audit log with the file's (`PlanStore.replaceAudit`, Browser and Memory stores, in the same commit as the state), then appends one "workspace replaced" entry; a file whose chain breaks is refused with its first broken link ("This file's audit log breaks at entry n. Nothing was imported."). Merge keeps this workspace's log. | The sample's Full file is about 19 MB and each lock adds about 7 MB, so 5.5's 25 MB limit refused a Full file after one more lock; and a Replace that kept the old log left the restored workspace's history out of step with its plan state (M3 integration). On the sample the Full file is now 14.2 MB, and 24.4 MB after two more locks. |
 | C36 | Plan gains a Hiring tab (9.7): open to hire by quarter = approved heads by the quarter end − current heads − accepted starts by the quarter end, with expected exits, hires needed per month, and hiring velocity from actual hires and exits (paces, attrition, months to close); an Open to hire tile on the HRBP, Leader and Manager homes. | Added at the user's request on 24 Oct 2026, before ship: a module that tracks headcount progress via hiring by quarter, and hiring velocity from hires and attrition. |
 | C37 | In Plan > Hiring, "accepted starts" and the velocity figure's "expected starts" become **Future starts**: people with a signed offer, by start date, and nothing else (no forecast or modeled start). Approved internal moves into the scope that have not started become their own row, Moves in, so the formula stays exact. Hiring velocity adds the hires of the last 3 closed months by location and department. The Forecast view's modeled starts are unchanged. | The user, 26 Oct 2026: "for expected starts, only call it future starts, and only include people that have signed offers. make sure to add hiring velocity by including the number of hires into that location and group over the last 3 months." |
-| C38 | Planned, not built yet: Plan gains a Recruiting summary tab (9.8): one screen with approved heads, current heads, open to hire, future starts (signed offers), projected starts (the forecast model, kept apart), projected attrition and hiring velocity, one chart by month, one table by quarter ahead, where hiring happened, and a one-slide export. | The user, 26 Oct 2026: "one simple view i can show the head of recruiting that shows current approved future starts projected starts projected attrition and hiring velocity". |
+| C38 | Plan gains a Recruiting summary tab (9.8): one screen with approved heads, current heads, open to hire, future starts (signed offers), projected starts (the forecast model, kept apart), projected attrition and hiring velocity, one chart by month, one table by quarter ahead, where hiring happened, and a one-slide export. Built 27 Oct 2026 (R133 to R148), its finish audit fixed 28 Oct 2026; with it the Forecast view's openings dated in a closed month count in the first open month (R147). | The user, 26 Oct 2026: "one simple view i can show the head of recruiting that shows current approved future starts projected starts projected attrition and hiring velocity". |
 
 ### 15.3 Accepted risks (repeated in README where they concern users)
 
@@ -2985,6 +3024,12 @@ and `lib/export/` together because each imports the other's types. M4 adds the f
 9. **Request number clashes** (R74): a new request's number is a keyed hash, so about one draw in
    24,000 per tagged ID already in force lands on a taken number; the person then gets their next
    number, so that one ID depends on another request. Nothing is shown or counted from it.
+10. **Forecast drivers in Manager mode** (review RP-4): modeled figures in heads let a manager read the
+   forecast's drivers back, though `dataset:assumptions` is hidden for Manager: the fill rate and time to
+   fill, and with modeled exits the backfill rate and lag, from projected starts and their modeled
+   backfills (Plan > Recruiting summary, C38; with one Open seat a month's projected starts are its fill
+   rate), and attrition from modeled exits (Plan > Hiring, C36). These are planning assumptions, not
+   anyone's pay; hiding a seat's weight would not prevent it.
 
 ---
 

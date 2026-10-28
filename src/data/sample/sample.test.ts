@@ -4,15 +4,18 @@
  * per-position differences of stories 1, 2 and 5, determinism, the README's hand calculations, and
  * Plan > Hiring (9.7, C36 and C37) recomputed from raw rows by code of its own for the HRBP's unit, the
  * leader's org, the company and Manager A's team, against the tab, the engine, Openings, Overview,
- * the forecast, the closes and My team.
+ * the forecast, the closes and My team; and Plan > Recruiting summary (9.8, C38) from that code and
+ * the forecast run, against the tab, Plan > Hiring and the forecast's own heads.
  * One generated sample per file (16.0). base.test.ts covers the base datasets; raw/stories.test.ts
  * runs the same stories on the messy data.
  */
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
+import { RECRUITING_KPI_IDS } from '@/access/ids'
 import { PLANNED_STORIES, storyChecks } from '@/app/status'
 import type { AnalyticsContext } from '@/data/context'
+import { resolveDrill } from '@/drill/types'
 import { fmt as formatAs } from '@/lib/format'
 import { MIN_COSTED } from '@/metrics/rules'
 import { bridge, bridgeSeats } from '@/plan/engine/bridge'
@@ -30,12 +33,17 @@ import { budgetOf, isLocked, lockHash, planOfRecord, verifyLock, workingOf } fro
 import type { LockedVersion, PlanLine } from '@/plan/types'
 import { personaCtx, personaOf } from '@/testkit/sample'
 import { prepare as prepareForecast } from '@/views/forecast/engine/base'
-import { forecastFlows } from '@/views/forecast/engine/heads'
+import { forecastFlows, forecastHeads } from '@/views/forecast/engine/heads'
 import { planModel } from '@/views/plan/engine'
 import { prepare as preparePlan } from '@/views/plan/engine/base'
 import { hiringForecast } from '@/views/plan/engine/hiringData'
 import { behindByText, hiringInputOf, planHiringModel, QUARTER_KEYS } from '@/views/plan/engine/hiringTab'
 import { openingsOf } from '@/views/plan/engine/openings'
+import {
+  FUTURE_STARTS_NOTE,
+  PROJECTED_STARTS_NOTE,
+  planRecruitingModel,
+} from '@/views/plan/engine/recruitingTab'
 import { teamModel } from '@/views/team/engine'
 import { monthEnd, monthsOf } from '../fiscal'
 import {
@@ -1646,45 +1654,55 @@ const HG_PINS = {
   },
 } as const
 type HgCase = keyof typeof HG_PINS
+/** The four scopes 9.7 names, and Managers B and C (My team's check, and Plan > Recruiting summary's). */
+type HgKey = HgCase | 'manager-b' | 'manager-c'
+
+/** Each persona's scope, from the raw rows. */
+const HG_SCOPE_OF: Record<HgKey, (d: Datasets) => HgScope> = {
+  'hrbp-se': (d) => hgUnit(d, SILICON),
+  'leader-svp-se': (d) => hgTree(d, personaOf(sample, 'leader-svp-se').employeeId),
+  'finance-fpa': hgCompany,
+  'manager-a': (d) => hgTree(d, personaOf(sample, 'manager-a').employeeId),
+  'manager-b': (d) => hgTree(d, personaOf(sample, 'manager-b').employeeId),
+  'manager-c': (d) => hgTree(d, personaOf(sample, 'manager-c').employeeId),
+}
+
+/** A persona's context, scope, forecast months and Plan > Hiring by independent code. */
+interface HgRun {
+  ctx: AnalyticsContext
+  scope: HgScope
+  mine: Hg
+  flows: HgFlows
+}
+
+const hgRuns = new Map<HgKey, HgRun>()
+
+/** One run per persona for the file: Plan > Hiring's and Plan > Recruiting summary's checks read the same. */
+function hgRunOf(key: HgKey): HgRun {
+  let r = hgRuns.get(key)
+  if (!r) {
+    const ctx = personaCtx(key, { sample })
+    const scope = HG_SCOPE_OF[key](data)
+    const flows = hgFlows(ctx)
+    r = { ctx, scope, mine: hgCompute(data, scope, flows), flows }
+    hgRuns.set(key, r)
+  }
+  return r
+}
 
 describe('Plan > Hiring on the sample, by independent code (9.7, C36)', () => {
-  const CASES: { key: HgCase; who: string; scope: (d: Datasets) => HgScope }[] = [
-    { key: 'hrbp-se', who: 'Silicon Engineering (HRBP)', scope: (d) => hgUnit(d, SILICON) },
-    {
-      key: 'leader-svp-se',
-      who: "Chun-Hsien Kuo's org (Leader)",
-      scope: (d) => hgTree(d, personaOf(sample, 'leader-svp-se').employeeId),
-    },
-    { key: 'finance-fpa', who: 'the whole company (Finance)', scope: hgCompany },
-    {
-      key: 'manager-a',
-      who: "Sebastian Wagner's team (Manager)",
-      scope: (d) => hgTree(d, personaOf(sample, 'manager-a').employeeId),
-    },
+  const CASES: { key: HgCase; who: string }[] = [
+    { key: 'hrbp-se', who: 'Silicon Engineering (HRBP)' },
+    { key: 'leader-svp-se', who: "Chun-Hsien Kuo's org (Leader)" },
+    { key: 'finance-fpa', who: 'the whole company (Finance)' },
+    { key: 'manager-a', who: "Sebastian Wagner's team (Manager)" },
   ]
-  const run = new Map<string, { ctx: AnalyticsContext; scope: HgScope; mine: Hg; flows: HgFlows }>()
-  const of = (key: string) =>
-    run.get(key) as { ctx: AnalyticsContext; scope: HgScope; mine: Hg; flows: HgFlows }
+  const run = new Map<string, HgRun>()
+  const of = (key: string) => run.get(key) as HgRun
 
   beforeAll(() => {
-    for (const c of [
-      ...CASES,
-      {
-        key: 'manager-b' as const,
-        who: 'Manager B',
-        scope: (d: Datasets) => hgTree(d, personaOf(sample, 'manager-b').employeeId),
-      },
-      {
-        key: 'manager-c' as const,
-        who: 'Manager C',
-        scope: (d: Datasets) => hgTree(d, personaOf(sample, 'manager-c').employeeId),
-      },
-    ]) {
-      const ctx = personaCtx(c.key, { sample })
-      const scope = c.scope(data)
-      const flows = hgFlows(ctx)
-      run.set(c.key, { ctx, scope, mine: hgCompute(data, scope, flows), flows })
-    }
+    for (const key of [...CASES.map((c) => c.key), 'manager-b' as const, 'manager-c' as const])
+      run.set(key, hgRunOf(key))
   }, 300_000)
 
   it('reads the four scopes 9.7 names, at 30 Sep 2026 with September the last close', () => {
@@ -2068,6 +2086,651 @@ describe('Plan > Hiring on the sample, by independent code (9.7, C36)', () => {
       expect(Object.keys(h).sort(), c.who).toEqual(
         ['elsewhere', 'inApprovedSeats', 'notInPlan', 'notInPlanIds', 'personIds', 'total'].sort(),
       )
+    }
+  })
+})
+
+/* ───────────────────────── Plan > Recruiting summary by independent code (docs/PLAN.md 9.8, C38) ───────────────────────── */
+
+/**
+ * Plan > Recruiting summary recomputed beside Plan > Hiring's independent code above (`hgCompute`,
+ * from the raw rows): approved heads by each quarter end, current heads, open to hire, future starts
+ * (signed offers), moves in, the known part of projected attrition, the closed months' hires, exits
+ * and heads, the paces and the last 3 closed months' hires by the seat's location and department
+ * are that code's. The modeled parts are read from the forecast run directly, never from the
+ * recruiting model nor Plan > Hiring's input: the run's expected starts of kind open or planned at
+ * their probability (the fill rate; a signed offer is kind offer, a future start, never a projected
+ * one), and `forecastFlows`' modeled backfills and modeled exits of the open months. In Manager mode
+ * the run is the one with the tree's own cohort (review HP-1), as `hgFlows` reads it.
+ *
+ * Reading taken by these checks: a projected start is any of those starts dated on or after the
+ * as-of date and on or before the day. A start the forecast dates on the as-of date itself (an
+ * overdue opening whose time to fill has run: 6.7's forecast start is the later of the target start
+ * and the as-of date) is a head nobody holds on the as-of date, so it is not in current heads, and
+ * the forecast counts it from then; the months ahead put it in the first month ahead. Modeled
+ * backfills and exits are the open months' whose month-end is on or before the day. Projected heads
+ * at a day are H + S + M + projected starts − E (9.8 item 2), so for a scope with nobody not in plan
+ * they are the forecast's own heads at each month-end.
+ */
+interface RcForecast {
+  /** The forecast's starts on Open and Planned seats in scope, at their probability. */
+  starts: { positionId: string; start: ISODate; probability: number }[]
+  /** Every start kind the run has in scope, with the probabilities they add up to. */
+  kinds: Map<string, number>
+  /** Modeled backfills of each open month. */
+  backfills: Map<Month, number>
+  /** The forecast's own heads at each month-end (position based: nobody not in plan). */
+  heads: Map<Month, number>
+}
+
+/** The forecast run a context's Plan > Hiring reads (`hgFlows`'), read for its starts, backfills and heads. */
+function rcForecast(ctx: AnalyticsContext, scope: HgScope): RcForecast {
+  const fp =
+    ctx.access.mode === 'manager' ? hiringForecast(ctx, preparePlan(ctx).scope.ids) : prepareForecast(ctx)
+  const run = fp.run
+  if (!run) throw new Error('No Working forecast on the sample.')
+  const starts: RcForecast['starts'] = []
+  const kinds = new Map<string, number>()
+  for (const [positionId, list] of run.starts) {
+    if (!scope.positions.has(positionId)) continue
+    for (const s of list) {
+      kinds.set(s.kind, (kinds.get(s.kind) ?? 0) + s.probability)
+      if (s.kind === 'open' || s.kind === 'planned')
+        starts.push({ positionId, start: s.start, probability: s.probability })
+    }
+  }
+  const backfills = new Map<Month, number>()
+  for (const [m, f] of forecastFlows(fp)) if (HG_OPEN.includes(m)) backfills.set(m, f.modeledBackfills)
+  return { starts, kinds, backfills, heads: new Map(forecastHeads(fp).heads) }
+}
+
+interface RcQuarter {
+  key: 'q3' | 'q4'
+  approved: number
+  futureStarts: number
+  movesIn: number
+  projectedStarts: number
+  projectedExits: number
+  projectedHeads: number
+  gap: number
+}
+interface RcMonth {
+  month: Month
+  futureStarts: number
+  movesIn: number
+  projectedStarts: number
+  projectedExits: number
+  projectedHeads: number
+}
+interface Rc {
+  /** The seven numbers in strip order: approved, current, open, future, projected, attrition, velocity. */
+  seven: [number, number, number, number, number, number, number]
+  /** The forecast's starts dated on the as-of date (overdue openings), at their probability. */
+  dueNow: number
+  quarters: RcQuarter[]
+  ahead: RcMonth[]
+  where: { locations: [string, number][]; departments: [string, number][]; more: [number, number] }
+}
+
+/** The top 5 by hires, then by name ("No location" and "No department" after the named); and how many more had a hire. */
+function rcTop(map: Map<string, number[]>): { top: [string, number][]; more: number } {
+  const blank = (x: string) => x === 'No location' || x === 'No department'
+  const byName = (x: string, y: string) =>
+    blank(x) !== blank(y) ? (blank(x) ? 1 : -1) : x < y ? -1 : x > y ? 1 : 0
+  const all = [...map]
+    .map(([name, v]): [string, number] => [name, v.reduce((a, b) => a + b, 0)])
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1] || byName(a[0], b[0]))
+  return { top: all.slice(0, 5), more: Math.max(0, all.length - 5) }
+}
+
+/** Plan > Recruiting summary for a scope: Plan > Hiring by independent code and the forecast run. */
+function rcCompute(mine: Hg, f: RcForecast): Rc {
+  const H = mine.heads.total
+  const startsTo = (end: string) =>
+    f.starts.filter((s) => s.start >= AS_OF && s.start <= end).reduce((a, s) => a + s.probability, 0)
+  const backfillsTo = (end: string) =>
+    HG_OPEN.filter((m) => monthEnd(m) <= end).reduce((a, m) => a + (f.backfills.get(m) ?? 0), 0)
+  const projectedTo = (end: string) => startsTo(end) + backfillsTo(end)
+  const quarters = (['q3', 'q4'] as const).map((key): RcQuarter => {
+    const a = mine.ahead[key]
+    const end = HG_QUARTERS.find((q) => q.key === key)?.end as string
+    const projectedStarts = projectedTo(end)
+    // No move in on the sample (asserted with Plan > Hiring's checks), so M(q) is 0.
+    const projectedHeads = H + a.accepted + mine.movesIn + projectedStarts - a.exits
+    return {
+      key,
+      approved: a.approved,
+      futureStarts: a.accepted,
+      movesIn: mine.movesIn,
+      projectedStarts,
+      projectedExits: a.exits,
+      projectedHeads,
+      gap: projectedHeads - a.approved,
+    }
+  })
+  // The months ahead: what each month-end adds to the day before the first (the as-of date's
+  // starts fall in the first month ahead).
+  let future = 0
+  let exits = 0
+  let before = 0
+  const ahead = mine.forecastMonths.map((m): RcMonth => {
+    future += m.hires
+    exits += m.exits
+    const to = projectedTo(monthEnd(m.month))
+    const out = {
+      month: m.month,
+      futureStarts: m.hires,
+      movesIn: 0,
+      projectedStarts: to - before,
+      projectedExits: m.exits,
+      projectedHeads: H + future + to - exits,
+    }
+    before = to
+    return out
+  })
+  const fy = quarters[1]
+  const locations = rcTop(mine.recent.locations)
+  const departments = rcTop(mine.recent.departments)
+  return {
+    seven: [
+      fy.approved,
+      H,
+      mine.openFyEnd,
+      mine.acceptedToCome,
+      fy.projectedStarts,
+      fy.projectedExits,
+      mine.paces.hires3,
+    ],
+    dueNow: f.starts.filter((s) => s.start === AS_OF).reduce((a, s) => a + s.probability, 0),
+    quarters,
+    ahead,
+    where: {
+      locations: locations.top,
+      departments: departments.top,
+      more: [locations.more, departments.more],
+    },
+  }
+}
+
+/**
+ * The pinned numbers by independent code (the section comment): the seven numbers in strip order,
+ * the forecast's starts on the as-of date (overdue openings, at their fill rate), the quarters ahead
+ * (approved heads by the quarter end, future starts, moves in, projected starts, projected exits,
+ * projected heads at the quarter end, the gap to approved heads), each month ahead's projected and
+ * future starts, and where hiring happened (top 5 by hires, then name; and how many more). The
+ * modeled parts are the forecast's, to 4 decimals.
+ */
+const RC_PINS: Record<
+  HgKey,
+  {
+    seven: readonly number[]
+    dueNow: number
+    quarters: Record<'q3' | 'q4', readonly number[]>
+    projectedByMonth: readonly number[]
+    futureByMonth: readonly number[]
+    where: { locations: [string, number][]; departments: [string, number][]; more: [number, number] }
+  }
+> = {
+  'hrbp-se': {
+    seven: [604, 556, 39, 9, 47.26338, 23.75296, 13 / 3],
+    dueNow: 10 * 0.85,
+    quarters: {
+      q3: [590, 9, 0, 24.71496, 11.67899, 578.03597, -11.96403],
+      q4: [604, 9, 0, 47.26338, 23.75296, 588.51042, -15.48958],
+    },
+    projectedByMonth: [8.5, 4.25, 11.96496, 6.91264, 7.78349, 7.85229],
+    futureByMonth: [3, 3, 3, 0, 0, 0],
+    where: {
+      locations: [
+        ['Munich', 4],
+        ['San Jose', 4],
+        ['Bengaluru', 3],
+        ['Ho Chi Minh City', 1],
+        ['Hsinchu', 1],
+      ],
+      departments: [
+        ['Design Verification', 4],
+        ['Analog & Mixed-Signal', 3],
+        ['Physical Design', 3],
+        ['Architecture', 1],
+        ['DFT', 1],
+      ],
+      more: [0, 1],
+    },
+  },
+  'leader-svp-se': {
+    seven: [603, 555, 39, 9, 47.23867, 23.71187, 13 / 3],
+    dueNow: 10 * 0.85,
+    quarters: {
+      q3: [589, 9, 0, 24.70873, 11.65836, 577.05037, -11.94963],
+      q4: [603, 9, 0, 47.23867, 23.71187, 587.5268, -15.4732],
+    },
+    projectedByMonth: [8.5, 4.25, 11.95873, 6.90645, 7.77735, 7.84615],
+    futureByMonth: [3, 3, 3, 0, 0, 0],
+    where: {
+      locations: [
+        ['Munich', 4],
+        ['San Jose', 4],
+        ['Bengaluru', 3],
+        ['Ho Chi Minh City', 1],
+        ['Hsinchu', 1],
+      ],
+      departments: [
+        ['Design Verification', 4],
+        ['Analog & Mixed-Signal', 3],
+        ['Physical Design', 3],
+        ['Architecture', 1],
+        ['DFT', 1],
+      ],
+      more: [0, 1],
+    },
+  },
+  'finance-fpa': {
+    seven: [1610, 1456, 132, 22, 161.70721, 79.93389, 13],
+    dueNow: 10 * 0.85 + 6 * 0.9,
+    quarters: {
+      q3: [1567, 22, 0, 92.33546, 40.62154, 1529.71392, -37.28608],
+      q4: [1610, 22, 0, 161.70721, 79.93389, 1559.77332, -50.22668],
+    },
+    projectedByMonth: [19.3, 21.35, 51.68546, 20.42411, 27.29841, 21.64923],
+    futureByMonth: [8, 8, 6, 0, 0, 0],
+    where: {
+      locations: [
+        ['San Jose', 15],
+        ['Shanghai', 6],
+        ['Bengaluru', 5],
+        ['Munich', 4],
+        ['Austin', 3],
+      ],
+      departments: [
+        ['Sales', 5],
+        ['Design Verification', 4],
+        ['Product Marketing', 4],
+        ['Software', 4],
+        ['Analog & Mixed-Signal', 3],
+      ],
+      more: [4, 11],
+    },
+  },
+  'manager-a': {
+    seven: [9, 7, 2, 0, 2.14001, 0.59182, 0],
+    dueNow: 0,
+    quarters: {
+      q3: [9, 0, 0, 1.87869, 0.27027, 8.60842, -0.39158],
+      q4: [9, 0, 0, 2.14001, 0.59182, 8.54818, -0.45182],
+    },
+    projectedByMonth: [0, 0.9, 0.97869, 0.0777, 0.08685, 0.09677],
+    futureByMonth: [0, 0, 0, 0, 0, 0],
+    where: { locations: [], departments: [], more: [0, 0] },
+  },
+  'manager-b': {
+    seven: [5, 3, 1, 1, 1.02313, 0.22087, 0],
+    dueNow: 0,
+    quarters: {
+      q3: [5, 1, 0, 0.9236, 0.0946, 4.829, -0.171],
+      q4: [5, 1, 0, 1.02313, 0.22087, 4.80226, -0.19774],
+    },
+    projectedByMonth: [0, 0.9, 0.0236, 0.0234, 0.03814, 0.03799],
+    futureByMonth: [0, 1, 0, 0, 0, 0],
+    where: { locations: [], departments: [], more: [0, 0] },
+  },
+  'manager-c': {
+    seven: [7, 7, 0, 0, 0.21785, 0.36207, 0],
+    dueNow: 0,
+    quarters: {
+      q3: [7, 0, 0, 0.05507, 0.18197, 6.8731, -0.1269],
+      q4: [7, 0, 0, 0.21785, 0.36207, 6.85578, -0.14422],
+    },
+    projectedByMonth: [0, 0, 0.05507, 0.05459, 0.05411, 0.05407],
+    futureByMonth: [0, 0, 0, 0, 0, 0],
+    where: { locations: [], departments: [], more: [0, 0] },
+  },
+}
+
+describe('Plan > Recruiting summary on the sample, by independent code (9.8, C38)', () => {
+  const CASES: { key: HgKey; who: string }[] = [
+    { key: 'hrbp-se', who: 'Silicon Engineering (HRBP)' },
+    { key: 'leader-svp-se', who: "Chun-Hsien Kuo's org (Leader)" },
+    { key: 'finance-fpa', who: 'the whole company (Finance)' },
+    { key: 'manager-a', who: "Sebastian Wagner's team (Manager)" },
+    { key: 'manager-b', who: 'Manager B' },
+    { key: 'manager-c', who: 'Manager C' },
+  ]
+  type RcRun = HgRun & { f: RcForecast; rc: Rc }
+  const run = new Map<HgKey, RcRun>()
+  const of = (key: HgKey) => run.get(key) as RcRun
+
+  beforeAll(() => {
+    for (const { key } of CASES) {
+      const r = hgRunOf(key)
+      const f = rcForecast(r.ctx, r.scope)
+      run.set(key, { ...r, f, rc: rcCompute(r.mine, f) })
+    }
+  }, 300_000)
+
+  it('reads every start kind of the forecast run: signed offers apart, Open and Planned seats at their fill rate', () => {
+    for (const { key, who } of CASES) {
+      const { f, mine } = of(key)
+      // A signed offer is a start of kind offer at probability 1: the future starts, never a projected start.
+      expect(f.kinds.get('offer') ?? 0, who).toBe(mine.acceptedToCome)
+      expect(
+        [...f.kinds.keys()].every((k) => ['offer', 'open', 'planned'].includes(k)),
+        who,
+      ).toBe(true)
+      for (const s of f.starts) {
+        expect(s.probability, `${who} ${s.positionId}`).toBeGreaterThan(0)
+        expect(s.probability, `${who} ${s.positionId}`).toBeLessThan(1)
+      }
+    }
+    // Non-vacuity: Open and Planned seats in the unit, the org, the company and Managers A and B.
+    for (const key of ['hrbp-se', 'leader-svp-se', 'finance-fpa', 'manager-a', 'manager-b'] as const)
+      expect(of(key).f.starts.length, key).toBeGreaterThan(0)
+    expect(of('manager-c').f.starts).toEqual([])
+  })
+
+  it('pins the seven numbers, the quarters ahead and the months ahead', () => {
+    const sum = (xs: readonly number[]) => xs.reduce((a, b) => a + b, 0)
+    for (const { key, who } of CASES) {
+      const { rc, mine } = of(key)
+      const pin = RC_PINS[key]
+      const [approved, current, open, future, projected, attrition, velocity] = rc.seven
+      expect([approved, current, open, future], who).toEqual(pin.seven.slice(0, 4))
+      expect(projected, `${who} projected starts`).toBeCloseTo(pin.seven[4], 4)
+      expect(attrition, `${who} projected attrition`).toBeCloseTo(pin.seven[5], 4)
+      expect(velocity, `${who} hiring velocity`).toBe(pin.seven[6])
+      expect(rc.dueNow, `${who} due on the as-of date`).toBeCloseTo(pin.dueNow, 9)
+      // The user's formula (9.7, no move in on the sample) and Plan > Hiring's own numbers.
+      expect(open, who).toBe(approved - current - future)
+      expect([approved, open, future], who).toEqual([
+        mine.ahead.q4.approved,
+        mine.openFyEnd,
+        mine.acceptedToCome,
+      ])
+      for (const q of rc.quarters) {
+        const [a, s, m, p, e, heads, gap] = pin.quarters[q.key]
+        expect([q.approved, q.futureStarts, q.movesIn], `${who} ${q.key}`).toEqual([a, s, m])
+        expect(q.projectedStarts, `${who} ${q.key} projected starts`).toBeCloseTo(p, 4)
+        expect(q.projectedExits, `${who} ${q.key} projected exits`).toBeCloseTo(e, 4)
+        expect(q.projectedHeads, `${who} ${q.key} projected heads`).toBeCloseTo(heads, 4)
+        expect(q.gap, `${who} ${q.key} gap`).toBeCloseTo(gap, 4)
+        expect(q.projectedHeads, `${who} ${q.key}`).toBeCloseTo(
+          current + q.futureStarts + q.movesIn + q.projectedStarts - q.projectedExits,
+          9,
+        )
+        expect(q.gap, `${who} ${q.key}`).toBeCloseTo(q.projectedHeads - q.approved, 9)
+      }
+      // The months ahead add up to the quarters and the seven numbers.
+      expect(
+        rc.ahead.map((m) => m.month),
+        who,
+      ).toEqual(HG_OPEN)
+      rc.ahead.forEach((m, i) => {
+        expect(m.projectedStarts, `${who} ${m.month}`).toBeCloseTo(pin.projectedByMonth[i], 4)
+      })
+      expect(
+        rc.ahead.map((m) => m.futureStarts),
+        who,
+      ).toEqual([...pin.futureByMonth])
+      expect(sum(rc.ahead.map((m) => m.futureStarts)), who).toBe(future)
+      expect(sum(rc.ahead.map((m) => m.projectedStarts)), who).toBeCloseTo(projected, 9)
+      expect(sum(rc.ahead.map((m) => m.projectedExits)), who).toBeCloseTo(attrition, 9)
+      expect(sum(rc.ahead.slice(0, 3).map((m) => m.projectedStarts)), who).toBeCloseTo(
+        rc.quarters[0].projectedStarts,
+        9,
+      )
+      expect(rc.ahead[2].projectedHeads, who).toBeCloseTo(rc.quarters[0].projectedHeads, 9)
+      expect(rc.ahead[5].projectedHeads, who).toBeCloseTo(rc.quarters[1].projectedHeads, 9)
+      // Where hiring happened: the top 5 of each list, and how many more.
+      expect(rc.where.locations, who).toEqual(pin.where.locations)
+      expect(rc.where.departments, who).toEqual(pin.where.departments)
+      expect(rc.where.more, who).toEqual(pin.where.more)
+    }
+  })
+
+  it("counts the forecast's starts on the as-of date in the first month ahead, as the forecast counts their heads", () => {
+    for (const { key, who } of CASES) {
+      const { f, mine, rc } = of(key)
+      const seats = new Map(mine.seats.map((x) => [x.positionId, x]))
+      // Each is an overdue opening: an approved Open seat nobody holds, with no signed offer, due by now.
+      for (const s of f.starts.filter((x) => x.start === AS_OF)) {
+        const seat = seats.get(s.positionId)
+        expect(seat, `${who} ${s.positionId}`).toBeTruthy()
+        expect(
+          [seat?.filled, seat?.offer, (seat?.firstHeadDay ?? '') <= AS_OF],
+          `${who} ${s.positionId}`,
+        ).toEqual([false, null, true])
+      }
+      // Nothing the forecast starts is dated before the as-of date.
+      expect(
+        f.starts.filter((x) => x.start < AS_OF).map((x) => x.positionId),
+        who,
+      ).toEqual([])
+      expect(rc.ahead[0].projectedStarts, who).toBeCloseTo(
+        rc.dueNow +
+          f.starts
+            .filter((x) => x.start > AS_OF && x.start <= monthEnd(HG_OPEN[0]))
+            .reduce((a, x) => a + x.probability, 0) +
+          (f.backfills.get(HG_OPEN[0]) ?? 0),
+        9,
+      )
+      // Projected heads at each month-end are the forecast's own heads there: the position-based
+      // forecast leaves out the people not in plan, whom current heads count.
+      for (const m of rc.ahead) {
+        const forecast = (f.heads.get(m.month) ?? 0) + mine.heads.notInPlan
+        if (key === 'finance-fpa')
+          // The one known leaver ahead whose head the forecast's modeled exits had thinned before
+          // their last day (P-2015, 4 Dec 2026) counts in full as a known exit: 0.0174 heads.
+          expect(Math.abs(m.projectedHeads - forecast), `${who} ${m.month}`).toBeLessThan(0.02)
+        else expect(m.projectedHeads, `${who} ${m.month}`).toBeCloseTo(forecast, 6)
+      }
+    }
+    // The unit, the org and the company have overdue openings; Managers A, B and C none.
+    expect(of('hrbp-se').rc.dueNow).toBeGreaterThan(8)
+    expect(of('finance-fpa').rc.dueNow).toBeGreaterThan(of('hrbp-se').rc.dueNow)
+    for (const key of ['manager-a', 'manager-b', 'manager-c'] as const) expect(of(key).rc.dueNow, key).toBe(0)
+  })
+
+  it('keeps future starts and projected starts apart: no signed offer is a projected start', () => {
+    for (const { key, who } of CASES) {
+      const { f, mine } = of(key)
+      const seats = new Map(mine.seats.map((x) => [x.positionId, x]))
+      const known = new Set(
+        data.workers
+          .filter((w) => !!w.terminationDate && w.terminationDate > AS_OF && !!w.positionId)
+          .map((w) => w.positionId as string),
+      )
+      // Every projected start by the year end is on an approved seat with no signed offer: an Open or
+      // Planned seat nobody holds, or a Filled seat its holder leaves (a reopened seat).
+      for (const s of f.starts.filter((x) => x.start <= HG_FY_END)) {
+        const seat = seats.get(s.positionId)
+        expect(seat, `${who} ${s.positionId}`).toBeTruthy()
+        expect(seat?.offer ?? null, `${who} ${s.positionId}`).toBeNull()
+        if (seat?.filled) expect(known.has(s.positionId), `${who} ${s.positionId}`).toBe(true)
+      }
+      // And the screen names them apart.
+      const m = planRecruitingModel(of(key).ctx)
+      const tile = (id: string) => m.kpis.find((k) => k.id === id)
+      expect([tile('recruiting-future')?.label, tile('recruiting-future')?.note], who).toEqual([
+        'Future starts',
+        FUTURE_STARTS_NOTE,
+      ])
+      expect([tile('recruiting-projected')?.label, tile('recruiting-projected')?.note], who).toEqual([
+        'Projected starts',
+        PROJECTED_STARTS_NOTE,
+      ])
+      for (const fig of [m.months, m.quarters]) {
+        const labels = fig.columns.map((c) => c.label)
+        expect(labels, `${who} ${fig.id}`).toContain('Future starts (signed offers)')
+        expect(labels, `${who} ${fig.id}`).toContain('Projected starts (model)')
+      }
+    }
+  })
+
+  it('is what Plan > Recruiting summary shows: the seven numbers, heads and hiring by month, by quarter ahead', () => {
+    for (const { key, who } of CASES) {
+      const { ctx, mine, rc } = of(key)
+      const m = planRecruitingModel(ctx)
+      expect(m.fiscalYear, who).toBe('FY27')
+      expect(
+        m.kpis.map((k) => k.id),
+        who,
+      ).toEqual([...RECRUITING_KPI_IDS])
+      const value = (id: string) => m.kpis.find((k) => k.id === id)?.value as number
+      const [approved, current, open, future, projected, attrition, velocity] = rc.seven
+      expect(
+        ['recruiting-approved', 'recruiting-current', 'recruiting-open', 'recruiting-future'].map(value),
+        who,
+      ).toEqual([approved, current, open, future])
+      expect(value('recruiting-projected'), `${who} projected starts`).toBeCloseTo(projected, 9)
+      expect(value('recruiting-attrition'), `${who} projected attrition`).toBeCloseTo(attrition, 9)
+      expect(value('recruiting-velocity'), `${who} hiring velocity`).toBeCloseTo(velocity, 9)
+      // Under projected attrition, the attrition rate (heads) over 12 closed months; under velocity, the 6-month pace
+      // and the last 3 months' hires (9.8 item 1).
+      const note = (id: string) => m.kpis.find((k) => k.id === id)?.note ?? ''
+      expect(note('recruiting-attrition'), who).toContain(formatAs(mine.paces.attrition, 'pct'))
+      expect(note('recruiting-velocity'), who).toContain(
+        `6-month pace ${formatAs(mine.paces.hires6, 'num1')}`,
+      )
+      const last3 = mine.recent.total.reduce((a, b) => a + b, 0)
+      // Short (review RU-9): "6-month pace 4.5; 13 hires in 3 months", the 3-month pace in the formula.
+      expect(note('recruiting-velocity'), who).toContain(
+        `${last3} ${last3 === 1 ? 'hire' : 'hires'} in 3 months`,
+      )
+      // The rate under projected attrition is the trailing one, over 12 closed months (review RN-6).
+      expect(note('recruiting-attrition'), who).toMatch(/over 12 closed months$/)
+      // The one slide's numbers are the tiles as the strip shows them.
+      expect(
+        m.deckNumbers.map((d) => d.value),
+        who,
+      ).toEqual(m.kpis.map((k) => formatAs(k.value, k.format)))
+      expect(
+        m.deckNumbers.map((d) => d.label),
+        who,
+      ).toEqual(m.kpis.map((k) => k.label))
+      // By quarter ahead: Q3 and Q4, row for row.
+      expect(
+        m.quarters.rows.map((r) => r.key),
+        who,
+      ).toEqual(['q3', 'q4'])
+      for (const q of rc.quarters) {
+        const r = m.quarters.rows.find((x) => x.key === q.key)
+        expect([r?.approved, r?.futureStarts, r?.movesIn], `${who} ${q.key}`).toEqual([
+          q.approved,
+          q.futureStarts,
+          q.movesIn,
+        ])
+        expect(r?.projectedStarts, `${who} ${q.key} projected starts`).toBeCloseTo(q.projectedStarts, 9)
+        expect(r?.projectedExits, `${who} ${q.key} projected exits`).toBeCloseTo(q.projectedExits, 9)
+        expect(r?.projectedHeads, `${who} ${q.key} projected heads`).toBeCloseTo(q.projectedHeads, 9)
+        expect(r?.gap, `${who} ${q.key} gap`).toBeCloseTo(q.gap, 9)
+        const shown = formatAs(Math.abs(q.gap), 'num1')
+        expect(r?.gapNote, `${who} ${q.key}`).toBe(q.gap < 0 ? `Short by ${shown}` : `Over by ${shown}`)
+      }
+      // No move in on the sample: neither table has a Moves in column (it shows only when not 0, C37).
+      for (const fig of [m.months, m.quarters])
+        expect(
+          fig.columns.some((c) => c.key === 'movesIn'),
+          `${who} ${fig.id}`,
+        ).toBe(false)
+      // Heads and hiring by month: the 12 closed months, then the months ahead to the year end.
+      const rows = m.months.rows
+      expect(
+        rows.map((r) => [r.month, r.kind]),
+        who,
+      ).toEqual([...HG_TRAILING.map((x) => [x, 'actual']), ...HG_OPEN.map((x) => [x, 'ahead'])])
+      expect(
+        rows.slice(0, 12).map((r) => [r.hires, r.exits, r.heads]),
+        who,
+      ).toEqual(mine.months.map((x) => [x.hires, x.exits, x.heads]))
+      for (const r of rows.slice(0, 12))
+        expect(
+          [r.futureStarts, r.movesIn, r.projectedStarts, r.projectedExits, r.projectedHeads],
+          `${who} ${r.month}`,
+        ).toEqual([null, null, null, null, null])
+      rows.slice(12).forEach((r, i) => {
+        const x = rc.ahead[i]
+        expect([r.hires, r.exits, r.heads], `${who} ${r.month}`).toEqual([null, null, null])
+        expect([r.futureStarts, r.movesIn], `${who} ${r.month}`).toEqual([x.futureStarts, x.movesIn])
+        expect(r.projectedStarts, `${who} ${r.month} projected starts`).toBeCloseTo(x.projectedStarts, 9)
+        expect(r.projectedExits, `${who} ${r.month} projected exits`).toBeCloseTo(x.projectedExits, 9)
+        expect(r.projectedHeads, `${who} ${r.month} projected heads`).toBeCloseTo(x.projectedHeads, 9)
+      })
+      // Approved heads at the year end, the chart's reference line, on every month.
+      expect(new Set(rows.map((r) => r.approved)), who).toEqual(new Set([approved]))
+      // Where hiring happened.
+      const where = (kind: string) =>
+        m.where.rows.filter((r) => r.kind === kind).map((r): [string, number] => [r.name, r.hires])
+      expect(where('location'), who).toEqual(rc.where.locations)
+      expect(where('department'), who).toEqual(rc.where.departments)
+      expect([m.whereMore.locations, m.whereMore.departments], who).toEqual(rc.where.more)
+      for (const r of m.where.rows) expect(r.perMonth, `${who} ${r.name}`).toBe(r.hires / 3)
+    }
+  })
+
+  it('agrees with Plan > Hiring: the same open to hire, future starts, pace and projected attrition', () => {
+    for (const { key, who } of CASES) {
+      const { ctx } = of(key)
+      const r = planRecruitingModel(ctx)
+      const h = planHiringModel(ctx)
+      const rv = (id: string) => r.kpis.find((k) => k.id === id)?.value
+      const hv = (id: string) => h.kpis.find((k) => k.id === id)?.value
+      expect([rv('recruiting-open'), rv('recruiting-future'), rv('recruiting-velocity')], who).toEqual([
+        hv('hiring-open'),
+        hv('hiring-accepted'),
+        hv('hiring-pace'),
+      ])
+      const row = (k: string) => h.quarters.rows.find((x) => x.key === k)
+      for (const q of r.quarters.rows) {
+        const k = q.key as 'q3' | 'q4'
+        expect([q.approved, q.futureStarts, q.projectedExits], `${who} ${k}`).toEqual([
+          row('approved')?.[k],
+          row('accepted')?.[k],
+          row('exits')?.[k],
+        ])
+      }
+      expect(rv('recruiting-attrition'), who).toBe(row('exits')?.q4)
+    }
+  })
+
+  it('opens the hires where hiring happened counts, the last 3 closed months, by the seat on the hire date', () => {
+    let opened = 0
+    for (const key of ['hrbp-se', 'leader-svp-se', 'finance-fpa'] as const) {
+      const { ctx, mine } = of(key)
+      const m = planRecruitingModel(ctx)
+      const col = m.where.columns.find((c) => c.key === 'hires')
+      for (const r of m.where.rows) {
+        const spec = resolveDrill(col?.drill?.(r) ?? null)
+        expect(spec?.kind, `${key} ${r.name}`).toBe('workers')
+        expect(spec?.rows.length, `${key} ${r.name}`).toBe(r.hires)
+        const ids = new Set((spec?.rows ?? []).map((w) => (w as { employeeId: string }).employeeId))
+        // Each is a hire of those months into a seat at that place on the hire date.
+        const rows = hgRows(data)
+        for (const id of ids) {
+          const w = data.workers.find(
+            (x) =>
+              x.employeeId === id &&
+              !!x.positionId &&
+              (x.assignmentStart || x.hireDate) === x.hireDate &&
+              HG_RECENT.includes(x.hireDate.slice(0, 7) as Month),
+          )
+          const list = rows.get(w?.positionId as string) ?? []
+          const at = hgRowOn(list, w?.hireDate as string) ?? list[0]
+          expect(r.kind === 'location' ? at?.location : at?.department, `${key} ${r.name} ${id}`).toBe(r.name)
+        }
+        opened++
+      }
+      expect(
+        mine.recent.total.reduce((a, b) => a + b, 0),
+        key,
+      ).toBeGreaterThan(0)
+    }
+    expect(opened).toBe(30)
+    // Managers A, B and C hired nobody in those months: no row, and the figure says so.
+    for (const key of ['manager-a', 'manager-b', 'manager-c'] as const) {
+      const m = planRecruitingModel(of(key).ctx)
+      expect(m.where.rows, key).toEqual([])
+      expect(m.where.empty, key).toBeTruthy()
     }
   })
 })

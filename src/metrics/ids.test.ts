@@ -73,6 +73,10 @@ const PLAN_12: Record<string, readonly string[]> = {
     'plan.hiring.monthsToClose',
     'plan.hiring.movesIn',
     'plan.hiring.recentHires',
+    // Plan > Recruiting summary (9.8, change C38).
+    'plan.recruiting.projectedStarts',
+    'plan.recruiting.projectedHeads',
+    'plan.recruiting.gapToApproved',
   ],
   requests: [
     'requests.queue.open',
@@ -158,8 +162,9 @@ describe('frozen metric ids', () => {
 
   it('no id is registered twice', () => {
     const all = [...Object.values(BY_VIEW).flatMap((m) => Object.values(m)), ...Object.values(RULE_ID)]
-    // 85 view ids and 6 rules, plus Plan > Hiring's 16 (9.7, change C36) and C37's 2.
-    expect(all).toHaveLength(85 + 16 + 2 + 6)
+    // 85 view ids and 6 rules, plus Plan > Hiring's 16 (9.7, change C36), C37's 2 and Plan >
+    // Recruiting summary's 3 (9.8, change C38).
+    expect(all).toHaveLength(85 + 16 + 2 + 3 + 6)
     expect(new Set(all).size).toBe(all.length)
   })
 

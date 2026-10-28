@@ -1,14 +1,19 @@
 /**
  * The whole-view export's pure parts (the template app's wholeViewModel test): tab groups with
  * collision-free figure ids, the render fingerprint, the toast copy and the dropped pay columns.
+ * A tab's own export toast (`tabExportDone`, finish audit AF-4) counts Plan > Recruiting summary's
+ * deck by its one slide, from the tab's own figures through `deckEntries`.
  */
 import { describe, expect, it } from 'vitest'
 import type { Column, RegisteredFigure } from '@/charts/types'
-import type { FigureGroup } from '@/lib/export/view'
+import { deckEntries, type FigureGroup, viewEntries } from '@/lib/export/view'
+import { PLAN_FIGURES } from '@/views/plan/engine/figures'
+import { SUMMARY_REPLACES } from '@/views/plan/ui/Recruiting'
 import {
   layoutProgress,
   payDropped,
   renderSignature,
+  tabExportDone,
   tabFigureGroup,
   tabFigureId,
   wholeViewDone,
@@ -107,11 +112,58 @@ describe('toast copy', () => {
     })
   })
 
+  it('counts a deck’s figures by the slides they get: a summary slide stands in for others (review RU-17)', () => {
+    const groups: FigureGroup[] = [tabFigureGroup(overview, [fig('a'), fig('b'), fig('c'), fig('d')])]
+    expect(
+      wholeViewDone({
+        kind: 'deck',
+        viewLabel: 'Plan',
+        groups,
+        failed: [],
+        payDropped: false,
+        deckFigures: 1,
+      }).description,
+    ).toBe('1 figure from 1 tab of Plan.')
+    // Control: the workbook keeps every figure, and a deck with no count given counts them all.
+    expect(
+      wholeViewDone({ kind: 'deck', viewLabel: 'Plan', groups, failed: [], payDropped: false }).description,
+    ).toBe('4 figures from 1 tab of Plan.')
+  })
+
   it('knows when pay columns were dropped', () => {
     const pay: Column[] = [{ key: 'baseSalary', label: 'Base salary', pay: true }]
     const groups = [tabFigureGroup(overview, [fig('a'), fig('pay', { columns: pay })])]
     expect(payDropped(groups, false)).toBe(true)
     expect(payDropped(groups, true)).toBe(false)
     expect(payDropped([tabFigureGroup(overview, [fig('a')])], false)).toBe(false)
+  })
+})
+
+describe('a tab’s own export toast (finish audit AF-4)', () => {
+  /** Plan > Recruiting summary's figures as its screen registers them: the chart carries the summary slide. */
+  const recruiting = (): RegisteredFigure[] => [
+    fig(PLAN_FIGURES.recruitingKpis),
+    fig(PLAN_FIGURES.recruitingMonths, {
+      deckSummary: { title: 'Recruiting summary', subtitle: '', numbers: [], replaces: SUMMARY_REPLACES },
+    }),
+    fig(PLAN_FIGURES.recruitingQuarters),
+    fig(PLAN_FIGURES.recruitingWhere),
+  ]
+  const meta = { view: 'Plan', tab: 'Recruiting summary' }
+
+  it('counts the deck by its slides: one for Plan > Recruiting summary', () => {
+    const figures = recruiting()
+    const deckFigures = deckEntries(viewEntries(figures)).length
+    expect(deckFigures).toBe(1)
+    expect(
+      tabExportDone({ kind: 'deck', meta, figures: figures.length, deckFigures, payDropped: false }),
+    ).toEqual({ title: 'Slides downloaded', description: '1 figure from Plan, Recruiting summary.' })
+    // Control: the workbook keeps every figure, a sheet each.
+    expect(
+      tabExportDone({ kind: 'workbook', meta, figures: figures.length, deckFigures, payDropped: true }),
+    ).toEqual({
+      title: 'Workbook downloaded',
+      description: '4 figures from Plan, Recruiting summary. Pay amounts were left out.',
+    })
   })
 })
